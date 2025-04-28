@@ -12,9 +12,10 @@
 - **相册功能**：保存历史图片，方便回顾学习内容
 
 ## 安装依赖
-
 ```bash
 pip install pillow requests opencv-python
+#ttsplayer 依赖包
+pip install dashscope simpleaudio pydub
 ```
 ## 使用方法
 1. 配置API密钥：
