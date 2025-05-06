@@ -499,9 +499,23 @@ class WordLearnerApp:
         self.image_label = ttk.Label(self.image_frame)
         self.image_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
+        # 添加句子显示区域
+        self.sentence_frame = ttk.LabelFrame(left_frame, text="图片描述")
+        self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+        
+        # 创建文本显示区域
+        self.sentence_text = tk.Text(self.sentence_frame, height=5, wrap=tk.WORD, width=50)
+        self.sentence_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.sentence_text.config(state=tk.DISABLED)
+        
+        # 添加填词区域
+        self.fill_words_frame = ttk.LabelFrame(left_frame, text="填词练习")
+        self.fill_words_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+        self.fill_words_frame.pack_forget()  # 初始时隐藏
+        
         # 图片操作按钮
         img_buttons_frame = ttk.Frame(left_frame)
-        img_buttons_frame.pack(fill=tk.X, pady=5)
+        img_buttons_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)  # 改为底部对齐
         
         # 初始化相机捕获
         self.camera_capture = CameraCapture(self.root)
@@ -515,6 +529,10 @@ class WordLearnerApp:
         self.recognize_btn = ttk.Button(img_buttons_frame, text="识别文字", command=self.recognize_text)
         self.recognize_btn.pack(side=tk.LEFT, padx=5)
         
+        # 添加填词按钮
+        self.fill_words_btn = ttk.Button(img_buttons_frame, text="开始填词", command=self.toggle_fill_words)
+        self.fill_words_btn.pack(side=tk.LEFT, padx=5)
+        
         # 右侧单词区域
         # 单词列表区域
         self.word_list_frame = ttk.LabelFrame(right_frame, text="识别到的单词")
@@ -524,15 +542,6 @@ class WordLearnerApp:
         self.word_listbox = tk.Listbox(self.word_list_frame, height=6)
         self.word_listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.word_listbox.bind('<<ListboxSelect>>', self.on_word_select)
-        
-        # 添加句子显示区域
-        self.sentence_frame = ttk.LabelFrame(right_frame, text="图片描述")
-        self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
-        
-        # 创建文本显示区域
-        self.sentence_text = tk.Text(self.sentence_frame, height=4, wrap=tk.WORD)
-        self.sentence_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        self.sentence_text.config(state=tk.DISABLED)
         
         # 单词详情区域
         self.word_detail_frame = ttk.LabelFrame(right_frame, text="单词详情")
@@ -579,6 +588,32 @@ class WordLearnerApp:
         
         return page
     
+    def toggle_fill_words(self):
+        """切换填词练习状态"""
+        if self.fill_words_frame.winfo_ismapped():  # 如果填词区域当前是显示的
+            # 结束填词
+            self.fill_words_frame.pack_forget()  # 隐藏填词区域
+            self.root.update_idletasks()  # 处理所有待处理的任务
+            
+            # 确保图片描述区域已准备好
+            self.sentence_text.config(state=tk.NORMAL)
+            self.sentence_text.config(state=tk.DISABLED)
+            
+            # 显示图片描述
+            self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+            self.fill_words_btn.config(text="开始填词")
+            self.status_bar.config(text="填词练习已结束")
+            
+            # 强制立即更新界面
+            self.root.update_idletasks()
+            self.root.update()
+        else:
+            # 开始填词
+            self.start_fill_words()
+            self.fill_words_btn.config(text="结束填词")
+            self.root.update_idletasks()
+            self.root.update()
+    
     def take_photo(self):
         """拍照"""
         # 打开相机窗口
@@ -598,6 +633,18 @@ class WordLearnerApp:
             # 清空单词列表
             self.word_listbox.delete(0, tk.END)
             self.recognized_words = []
+            
+            # 清空图片描述
+            self.sentence_text.config(state=tk.NORMAL)
+            self.sentence_text.delete(1.0, tk.END)
+            self.sentence_text.config(state=tk.DISABLED)
+            
+            # 隐藏填词练习区域
+            self.fill_words_frame.pack_forget()
+            # 显示图片描述区域
+            self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+            # 重置填词按钮文本
+            self.fill_words_btn.config(text="开始填词")
             
             # 更新状态栏
             self.status_bar.config(text="拍照成功，可以点击\"识别文字\"按钮识别单词")
@@ -626,6 +673,18 @@ class WordLearnerApp:
             # 清空单词列表
             self.word_listbox.delete(0, tk.END)
             self.recognized_words = []
+            
+            # 清空图片描述
+            self.sentence_text.config(state=tk.NORMAL)
+            self.sentence_text.delete(1.0, tk.END)
+            self.sentence_text.config(state=tk.DISABLED)
+            
+            # 隐藏填词练习区域
+            self.fill_words_frame.pack_forget()
+            # 显示图片描述区域
+            self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+            # 重置填词按钮文本
+            self.fill_words_btn.config(text="开始填词")
             
             # 更新状态栏
             self.status_bar.config(text="图片加载成功，可以点击\"识别文字\"按钮识别单词")
@@ -1024,6 +1083,247 @@ class WordLearnerApp:
         except Exception as e:
             self.status_bar.config(text=f"翻译过程中出错: {str(e)}")
             messagebox.showerror("错误", f"翻译过程中出错: {str(e)}")
+
+    def start_fill_words(self):
+        """开始填词练习"""
+        if not self.recognized_words:
+            messagebox.showinfo("提示", "请先识别图片中的单词")
+            return
+            
+        # 获取原始描述文本
+        original_text = self.sentence_text.get(1.0, tk.END).strip()
+        if not original_text:
+            messagebox.showinfo("提示", "没有可用的描述文本")
+            return
+            
+        # 按长度排序单词，确保先替换长单词，避免部分替换
+        sorted_words = sorted(self.recognized_words, key=len, reverse=True)
+        
+        # 存储每个单词的位置信息
+        self.word_positions = []
+        
+        # 创建填词文本
+        fill_text = original_text
+        for word in sorted_words:
+            # 记录单词的位置
+            start_pos = fill_text.find(word)
+            if start_pos != -1:
+                self.word_positions.append({
+                    'word': word,
+                    'start': start_pos,
+                    'end': start_pos + len(word)
+                })
+        
+        # 清空填词区域
+        for widget in self.fill_words_frame.winfo_children():
+            widget.destroy()
+        
+        # 创建文本显示区域
+        text_frame = ttk.Frame(self.fill_words_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # 创建文本组件用于自动换行
+        self.fill_words_text = tk.Text(text_frame, wrap=tk.WORD, font=("Arial", 13), height=10)
+        self.fill_words_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建输入框字典
+        self.word_entries = {}
+        
+        # 分割文本并创建输入框
+        last_end = 0
+        for pos in sorted(self.word_positions, key=lambda x: x['start']):
+            # 添加单词前的文本
+            if pos['start'] > last_end:
+                text = fill_text[last_end:pos['start']]
+                self.fill_words_text.insert(tk.END, text)
+            
+            # 创建单词的输入框容器
+            word_frame = ttk.Frame(self.fill_words_frame)
+            
+            # 添加首字母标签
+            first_letter_label = ttk.Label(word_frame, text=pos['word'][0], font=("Arial", 13, "bold"))
+            first_letter_label.pack(side=tk.LEFT, padx=(0, 2))
+            
+            # 为剩余字母创建输入框
+            letter_entries = []
+            for i in range(1, len(pos['word'])):  # 从第二个字母开始
+                entry = tk.Text(word_frame, width=1, height=1, font=("Arial", 13))
+                entry.pack(side=tk.LEFT, padx=0)
+                
+                # 设置输入框样式
+                entry.configure(
+                    relief=tk.SOLID,
+                    borderwidth=1,
+                    background="#f0f0f0",  # 浅灰色背景
+                    selectbackground="#a6a6a6",  # 选中文本的背景色
+                    selectforeground="black"  # 选中文本的前景色
+                )
+                
+                # 绑定按键事件
+                entry.bind('<KeyRelease>', lambda e, word=pos['word'], index=i: self.check_single_letter(e, word, index))
+                entry.bind('<Tab>', self.move_to_next_letter)
+                
+                letter_entries.append(entry)
+            
+            # 存储这个单词的所有输入框
+            self.word_entries[pos['start']] = letter_entries
+            
+            # 将单词的输入框容器插入到文本中
+            self.fill_words_text.window_create(tk.END, window=word_frame)
+            
+            last_end = pos['end']
+        
+        # 添加最后一个单词后的文本
+        if last_end < len(fill_text):
+            text = fill_text[last_end:]
+            self.fill_words_text.insert(tk.END, text)
+        
+        # 禁用文本编辑，只允许在输入框中输入
+        self.fill_words_text.config(state=tk.DISABLED)
+        
+        # 隐藏图片描述，显示填词区域
+        self.sentence_frame.pack_forget()
+        self.fill_words_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+        
+        # 将焦点设置到第一个输入框
+        if self.word_entries:
+            first_word_entries = next(iter(self.word_entries.values()))
+            first_word_entries[0].focus_set()
+        
+        # 更新状态栏
+        self.status_bar.config(text="开始填词练习，输入正确的单词，按Tab键切换到下一个位置")
+        
+        # 添加提示按钮
+        if not hasattr(self, 'hint_btn'):
+            self.hint_btn = ttk.Button(self.fill_words_frame, text="显示提示", command=self.show_hint)
+            self.hint_btn.pack(pady=5)
+
+    def check_single_letter(self, event, correct_word, letter_index):
+        """检查单个字母的输入"""
+        entry = event.widget
+        user_letter = entry.get("1.0", tk.END).strip()
+        
+        # 如果输入超过一个字符，只保留第一个
+        if len(user_letter) > 1:
+            entry.delete("1.0", tk.END)
+            entry.insert("1.0", user_letter[0])
+        
+        # 检查字母是否正确
+        if user_letter and user_letter.lower() == correct_word[letter_index].lower():
+            entry.configure(foreground="green")
+            # 自动移动到下一个输入框
+            self.move_to_next_letter_auto(entry)
+        else:
+            entry.configure(foreground="red")
+        
+        # 检查是否所有单词都正确
+        correct_count = 0
+        for pos, entries in self.word_entries.items():
+            word = next(p['word'] for p in self.word_positions if p['start'] == pos)
+            is_word_correct = True
+            # 检查除首字母外的所有字母
+            for i, entry in enumerate(entries):
+                if entry.get("1.0", tk.END).strip().lower() != word[i + 1].lower():  # i + 1 因为跳过了首字母
+                    is_word_correct = False
+                    break
+            if is_word_correct:
+                correct_count += 1
+        
+        # 更新状态栏
+        total_words = len(self.recognized_words)
+        if correct_count == total_words:
+            self.status_bar.config(text="恭喜！所有单词都填写正确！")
+            self.hint_btn.config(state=tk.DISABLED)
+            # 播放完成音效
+            self.play_completion_sound()
+        else:
+            self.status_bar.config(text=f"已正确填写 {correct_count}/{total_words} 个单词")
+            self.hint_btn.config(state=tk.NORMAL)
+
+    def move_to_next_letter_auto(self, current_entry):
+        """自动移动到下一个字母输入框"""
+        # 找到当前输入框所在的单词
+        for entries in self.word_entries.values():
+            if current_entry in entries:
+                current_index = entries.index(current_entry)
+                if current_index < len(entries) - 1:
+                    # 移动到下一个字母
+                    entries[current_index + 1].focus_set()
+                else:
+                    # 移动到下一个单词的第一个字母
+                    next_word_found = False
+                    for next_entries in self.word_entries.values():
+                        if next_entries == entries:
+                            next_word_found = True
+                            continue
+                        if next_word_found:
+                            next_entries[0].focus_set()
+                            break
+                break
+
+    def show_hint(self):
+        """显示当前单词的提示"""
+        # 获取当前焦点所在的输入框
+        focused_widget = self.fill_words_frame.focus_get()
+        if not isinstance(focused_widget, ttk.Entry):
+            return
+        
+        # 找到对应的单词
+        for pos, entries in self.word_entries.items():
+            if focused_widget in entries:
+                word = next(p['word'] for p in self.word_positions if p['start'] == pos)
+                # 显示提示（显示单词的前两个字母）
+                hint = word[:2]
+                # 保留首字母
+                for entry in entries:
+                    entry.delete(0, tk.END)
+                    entry.insert(0, hint)
+                # 将光标移动到第二个字母后面
+                for i, entry in enumerate(entries):
+                    if i > 0:
+                        entry.icursor(1)
+                # 更新状态栏
+                self.status_bar.config(text=f"提示：单词以 '{hint}' 开头")
+                break
+
+    def play_completion_sound(self):
+        """播放完成音效"""
+        try:
+            import winsound
+            # Windows系统使用winsound
+            winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+        except ImportError:
+            try:
+                import os
+                # macOS系统使用afplay
+                os.system('afplay /System/Library/Sounds/Glass.aiff')
+            except:
+                # 如果都失败了，使用简单的蜂鸣声
+                print('\a')  # 打印ASCII bell字符
+
+    def move_to_next_letter(self, event):
+        """移动到下一个字母输入框"""
+        current_entry = event.widget
+        # 找到当前输入框所在的单词
+        for entries in self.word_entries.values():
+            if current_entry in entries:
+                current_index = entries.index(current_entry)
+                if current_index < len(entries) - 1:
+                    # 移动到下一个字母
+                    entries[current_index + 1].focus_set()
+                else:
+                    # 移动到下一个单词的第一个字母
+                    next_word_found = False
+                    for next_entries in self.word_entries.values():
+                        if next_entries == entries:
+                            next_word_found = True
+                            continue
+                        if next_word_found:
+                            next_entries[0].focus_set()
+                            break
+                break
+        
+        return "break"  # 阻止默认的Tab行为
 
 # 主程序入口
 if __name__ == "__main__":
