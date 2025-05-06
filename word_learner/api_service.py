@@ -75,10 +75,11 @@ class APIService:
             # 使用模拟数据
             num_words = random.randint(3, 10)
             words = random.sample(self.mock_words, num_words)
-            return True, "识别成功（模拟数据）", words
+            description = f"This is a mock description containing words: {', '.join(words)}"
+            return True, "识别成功（模拟数据）", words, description
         
         if not self.client:
-            return False, "API客户端未初始化 (检查API密钥)", []
+            return False, "API客户端未初始化 (检查API密钥)", [], ""
         
         try:
             # 读取图片并转为base64
@@ -88,19 +89,18 @@ class APIService:
             messages = [
                  {
                      "role": "system",
-                     "content": "你是一位专业的英语学习专家，专注于通过图片帮助用户学习英语。你的任务是根据用户提供的图片内容，生成相关的英语单词、短语，以提升用户的英语水平。能够处理多种类型的图片，包括但不限于实物照片、插画、图表等。结合图片主题，提供实用的英语表达，适用于日常生活、工作或学术场景。并以JSON数组格式返回，格式为：[\"word1\", \"word2\", ...]。只返回JSON数组，不要返回其他内容。"
+                     "content": "你是一位专业的英语学习专家，专注于通过图片帮助用户学习英语。你的任务是根据用户提供的图片内容，生成相关的英语单词、短语，以提升用户的英语水平。能够处理多种类型的图片，包括但不限于实物照片、插画、图表等。结合图片主题，提供实用的英语表达，适用于日常生活、工作或学术场景。请以JSON格式返回，包含两个字段：1. words: 提取的关键单词数组；2. description: 对图片内容的英文描述。描述必须自然地包含所有提取的单词，并确保每个单词都在描述中出现。格式为：{\"words\": [\"word1\", \"word2\", ...], \"description\": \"图片描述\"}。只返回JSON，不要返回其他内容。"
                  },
                  {
                      "role": "user",
                      "content": [
                          {
                              "type": "text",
-                             "text": "提取图片中的关键信息，信息包括人物、动作、场景、形容词等。根据图片内容，生成准确且相关的多个英文词汇、短语。并以json的格式输出。"
+                             "text": "提取图片中的关键信息，包括人物、动作、场景、形容词等。根据图片内容，生成准确且相关的多个英文词汇、短语，并提供一个完整的英文描述。描述必须自然地包含所有提取的单词。"
                          },
                          {
                              "type": "image_url",
                              "image_url": {
-                                 # Qwen supports data URI scheme
                                  "url": f"data:image/jpeg;base64,{base64_image}"
                              }
                          }
@@ -111,55 +111,41 @@ class APIService:
             completion = self.client.chat.completions.create(
                 model="qwen-vl-max", # Use Qwen VL model
                 messages=messages,
-                max_tokens=300 # Adjusted max_tokens, 30k seemed excessive for word list
+                max_tokens=500 # 增加token限制以容纳描述
             )
 
             content = completion.choices[0].message.content
             
             # 解析JSON响应
             try:
-                words = json.loads(content)
-                
-                # 过滤非单词
-                words = [w for w in words if isinstance(w, str) and w.strip()]
-                
-                return True, "识别成功 (Qwen)", words
-            except json.JSONDecodeError:
-                # 如果返回的不是有效JSON，尝试提取单词
-                words = []
+                # 处理可能的markdown代码块
                 cleaned_content = content.strip()
-                # Handle potential markdown code blocks
                 if cleaned_content.startswith("```json"):
                     cleaned_content = cleaned_content[7:]
                 if cleaned_content.endswith("```"):
                     cleaned_content = cleaned_content[:-3]
                 cleaned_content = cleaned_content.strip()
 
-                try:
-                    # Try parsing again after cleaning
-                    words = json.loads(cleaned_content)
-                    words = [w for w in words if isinstance(w, str) and w.strip()]
-                    if words:
-                        return True, "识别成功 (Qwen, cleaned)", words
-                except json.JSONDecodeError:
-                    # Final fallback: line-by-line extraction
-                    for line in content.split('\n'):
-                        line = line.strip()
-                        if line and not line.startswith('[') and not line.startswith(']'):
-                            word = line.strip('"').strip(',').strip()
-                            if word:
-                                words.append(word)
-
-                if words:
-                    return True, "识别成功 (Qwen, fallback)", words
-                else:
-                    print(f"Qwen VL response content: {content}")
-                    return False, "无法解析Qwen识别结果", []
+                data = json.loads(cleaned_content)
+                words = data.get("words", [])
+                description = data.get("description", "")
+                
+                # 过滤非单词
+                words = [w for w in words if isinstance(w, str) and w.strip()]
+                
+                # 验证描述是否包含所有单词
+                missing_words = [word for word in words if word.lower() not in description.lower()]
+                if missing_words:
+                    # 如果描述中缺少某些单词，将它们添加到描述末尾
+                    description += f"\n\nAdditional words: {', '.join(missing_words)}"
+                
+                return True, "识别成功 (Qwen)", words, description
+            except json.JSONDecodeError:
+                print(f"Qwen VL response content: {content}")
+                return False, "无法解析Qwen识别结果", [], ""
         except Exception as e:
-            # Catch specific OpenAI/API errors if needed, otherwise generic Exception
-            # from openai import APIError, RateLimitError etc.
             print(f"Qwen VL API Error: {e}")
-            return False, f"识别过程中出错: {str(e)}", []
+            return False, f"识别过程中出错: {str(e)}", [], ""
     
     def query_word_details(self, word):
         """查询单词详情 (使用 Qwen-Turbo)"""
@@ -223,3 +209,40 @@ class APIService:
             # from openai import APIError, RateLimitError etc.
             print(f"Qwen Turbo API Error: {e}")
             return False, f"查询过程中出错: {str(e)}", {}, f"查询过程中出错: {str(e)}"
+
+    def translate_text(self, text):
+        """翻译文本 (使用 Qwen-Turbo)"""
+        if self.mock_mode:
+            # 使用模拟数据
+            mock_translation = "这是一个模拟的中文翻译。"
+            return True, "翻译成功（模拟数据）", mock_translation
+        
+        if not self.client:
+            return False, "API客户端未初始化 (检查API密钥)", ""
+        
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一位专业的翻译专家。请将英文文本翻译成中文，保持翻译的准确性和流畅性。只返回翻译结果，不要添加任何额外的解释或说明。"
+                },
+                {
+                    "role": "user",
+                    "content": f"请将以下英文文本翻译成中文：\n\n{text}"
+                }
+            ]
+
+            completion = self.client.chat.completions.create(
+                model="qwen-turbo",
+                messages=messages,
+                max_tokens=500,
+                temperature=0.3  # 降低温度以获得更稳定的翻译结果
+            )
+
+            translation = completion.choices[0].message.content.strip()
+            # 移除可能的引号和其他格式
+            translation = translation.strip('"\'')
+            return True, "翻译成功", translation
+        except Exception as e:
+            print(f"Translation API Error: {e}")
+            return False, f"翻译过程中出错: {str(e)}", ""

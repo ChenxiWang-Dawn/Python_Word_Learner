@@ -21,8 +21,8 @@ class WordLearnerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("拍照学单词")
-        self.root.geometry("1000x700")
-        self.root.minsize(800, 600)
+        self.root.geometry("1000x800")  # 增加默认高度
+        self.root.minsize(800, 700)     # 增加最小高度
         
         # 配置
         self.api_key = ""  # 需要设置OpenAI API密钥
@@ -40,6 +40,12 @@ class WordLearnerApp:
         
         # 创建UI
         self.create_ui()
+        
+        # 确保窗口大小合适
+        self.root.update()
+        min_height = self.navbar.winfo_reqheight() + self.status_bar.winfo_reqheight() + 600  # 增加内容区域的最小高度
+        if self.root.winfo_height() < min_height:
+            self.root.geometry(f"{self.root.winfo_width()}x{min_height}")
     
     def init_services(self):
         """初始化各种服务和管理器"""
@@ -106,11 +112,14 @@ class WordLearnerApp:
         """创建用户界面"""
         # 创建主框架
         self.main_frame = ttk.Frame(self.root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))  # 减少底部padding
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
         
         # 创建内容区域
         self.content_frame = ttk.Frame(self.main_frame)
         self.content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建底部导航栏
+        self.create_bottom_navbar()
         
         # 创建底部状态栏
         self.create_statusbar()
@@ -133,9 +142,6 @@ class WordLearnerApp:
         self.pages["words"] = self.words_manager.create_words_page(self.content_frame)
         self.pages["album"] = self.album_manager.create_album_page(self.content_frame)
 
-        # 创建底部导航栏
-        self.create_bottom_navbar()
-        
         # 默认显示相机页面
         self.show_page("camera")
         
@@ -171,40 +177,40 @@ class WordLearnerApp:
     
     def create_bottom_navbar(self):
         """创建底部导航栏"""
-        navbar = ttk.Frame(self.root)
-        navbar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 5))
+        self.navbar = ttk.Frame(self.root)
+        self.navbar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 5))
         
         # 创建按钮样式
         style = ttk.Style()
-        style.configure("Nav.TButton", padding=10)
+        style.configure("Nav.TButton", padding=5)  # 减小按钮内边距
         
         # 相机/拍照页面按钮
-        self.camera_btn = ttk.Button(navbar, text="拍照识别", style="Nav.TButton", 
+        self.camera_btn = ttk.Button(self.navbar, text="拍照识别", style="Nav.TButton", 
                                      command=lambda: self.show_page("camera"))
         self.camera_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 生词本按钮
-        self.wordbook_btn = ttk.Button(navbar, text="生词本", style="Nav.TButton", 
+        self.wordbook_btn = ttk.Button(self.navbar, text="生词本", style="Nav.TButton", 
                                        command=lambda: self.show_page("wordbook"))
         self.wordbook_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 相册按钮
-        self.album_btn = ttk.Button(navbar, text="相册", style="Nav.TButton", 
+        self.album_btn = ttk.Button(self.navbar, text="相册", style="Nav.TButton", 
                                    command=lambda: self.show_page("album"))
         self.album_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 单词按钮
-        self.words_btn = ttk.Button(navbar, text="单词", style="Nav.TButton", 
+        self.words_btn = ttk.Button(self.navbar, text="单词", style="Nav.TButton", 
                                    command=lambda: self.show_page("words"))
         self.words_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 复习按钮
-        self.review_btn = ttk.Button(navbar, text="复习", style="Nav.TButton", 
+        self.review_btn = ttk.Button(self.navbar, text="复习", style="Nav.TButton", 
                                      command=lambda: self.show_page("review"))
         self.review_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 设置按钮
-        self.settings_btn = ttk.Button(navbar, text="设置", style="Nav.TButton", 
+        self.settings_btn = ttk.Button(self.navbar, text="设置", style="Nav.TButton", 
                                        command=lambda: self.show_page("settings"))
         self.settings_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
     
@@ -519,6 +525,15 @@ class WordLearnerApp:
         self.word_listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.word_listbox.bind('<<ListboxSelect>>', self.on_word_select)
         
+        # 添加句子显示区域
+        self.sentence_frame = ttk.LabelFrame(right_frame, text="图片描述")
+        self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+        
+        # 创建文本显示区域
+        self.sentence_text = tk.Text(self.sentence_frame, height=4, wrap=tk.WORD)
+        self.sentence_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.sentence_text.config(state=tk.DISABLED)
+        
         # 单词详情区域
         self.word_detail_frame = ttk.LabelFrame(right_frame, text="单词详情")
         self.word_detail_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -620,48 +635,86 @@ class WordLearnerApp:
     def recognize_text(self):
         """识别图片中的文字"""
         if not self.current_image_path:
-            messagebox.showinfo("提示", "请先拍照或上传图片")
+            messagebox.showerror("错误", "请先选择图片")
             return
         
-        if not self.api_key:
-            messagebox.showinfo("提示", "请先在设置中配置API密钥")
-            self.show_page("settings")
-            return
-        
-        # 显示加载中
-        self.status_bar.config(text="正在识别文字...")
-        self.root.update()
-        
-        # 调用API识别文字
-        success, message, words = self.api_service.recognize_text(self.current_image_path)
-        
-        if success:
-            # 更新单词列表
-            self.recognized_words = words
+        try:
+            # 显示加载状态
+            self.status_bar.config(text="正在识别图片...")
+            self.root.update()
             
-            # 清空列表框
-            self.word_listbox.delete(0, tk.END)
+            # 调用API识别文字
+            success, message, words, description = self.api_service.recognize_text(self.current_image_path)
             
-            # 添加单词到列表框
-            for word in words:
-                self.word_listbox.insert(tk.END, word)
-            
-            # 如果有单词，选中第一个
-            if words:
-                self.word_listbox.selection_set(0)
-                self.on_word_select(None)
+            if success:
+                # 更新识别的单词列表
+                self.recognized_words = words
                 
-                # 将图片添加到相册，并标记为含单词
-                self.album_manager.add_image_to_album(self.current_image_path, True)
+                # 清空现有单词
+                self.word_listbox.delete(0, tk.END)
+                
+                # 添加新识别的单词
+                for word in words:
+                    self.word_listbox.insert(tk.END, word)
+                
+                # 更新图片描述
+                self.sentence_text.config(state=tk.NORMAL)
+                self.sentence_text.delete(1.0, tk.END)
+                self.sentence_text.insert(tk.END, description)
+                self.sentence_text.config(state=tk.DISABLED)
+                
+                # 高亮显示识别到的单词
+                self.highlight_words(description, words)
+                
+                # 如果有单词，选中第一个
+                if words:
+                    self.word_listbox.selection_set(0)
+                    self.on_word_select(None)
+                
+                self.status_bar.config(text=message)
             else:
-                # 将图片添加到相册，标记为不含单词
-                self.album_manager.add_image_to_album(self.current_image_path, False)
+                self.status_bar.config(text=message)
+                messagebox.showerror("错误", message)
+        except Exception as e:
+            self.status_bar.config(text=f"处理图片时出错: {str(e)}")
+            messagebox.showerror("错误", f"处理图片时出错: {str(e)}")
+    
+    def update_sentence_display(self, words):
+        """更新句子显示区域"""
+        # 清空文本区域
+        self.sentence_text.config(state=tk.NORMAL)
+        self.sentence_text.delete(1.0, tk.END)
+        
+        if not words:
+            self.sentence_text.config(state=tk.DISABLED)
+            return
             
-            # 更新状态栏
-            self.status_bar.config(text=f"识别完成，找到 {len(words)} 个单词")
-        else:
-            messagebox.showerror("错误", message)
-            self.status_bar.config(text="识别失败")
+        # 创建句子
+        sentence = " ".join(words)
+        
+        # 插入句子，并为每个单词添加红色标记
+        start_index = "1.0"
+        for word in words:
+            # 找到单词在句子中的位置
+            word_start = sentence.find(word, int(start_index.split(".")[1]) - 1)
+            if word_start != -1:
+                # 插入单词前的文本
+                if word_start > 0:
+                    self.sentence_text.insert(tk.END, sentence[:word_start])
+                
+                # 插入红色单词
+                self.sentence_text.insert(tk.END, word, "red")
+                self.sentence_text.tag_configure("red", foreground="red")
+                
+                # 更新起始位置
+                start_index = f"1.{word_start + len(word)}"
+                sentence = sentence[word_start + len(word):]
+        
+        # 插入剩余的文本
+        if sentence:
+            self.sentence_text.insert(tk.END, sentence)
+        
+        self.sentence_text.config(state=tk.DISABLED)
     
     def on_word_select(self, event):
         """当选择单词列表中的单词时"""
@@ -683,8 +736,55 @@ class WordLearnerApp:
             self.example_text.delete(1.0, tk.END)
             self.example_text.config(state=tk.DISABLED)
             
+            # 高亮显示描述中的当前选中单词
+            self.highlight_selected_word(word)
+            
             # 查询单词详情
             self.query_word_details(word)
+    
+    def highlight_selected_word(self, word):
+        """高亮显示描述中选中的单词"""
+        # 启用文本编辑
+        self.sentence_text.config(state=tk.NORMAL)
+        
+        # 清除现有的选中高亮
+        self.sentence_text.tag_remove("selected", "1.0", tk.END)
+        
+        # 查找并高亮选中的单词
+        start_pos = "1.0"
+        found = False
+        last_valid_pos = None
+        
+        while True:
+            # 查找单词（不区分大小写）
+            start_pos = self.sentence_text.search(r'\y' + word + r'\y', start_pos, tk.END, nocase=True, regexp=True)
+            if not start_pos:
+                break
+                
+            found = True
+            last_valid_pos = start_pos  # 保存最后一个有效位置
+            
+            # 计算结束位置
+            end_pos = f"{start_pos}+{len(word)}c"
+            
+            # 添加选中高亮标签
+            self.sentence_text.tag_add("selected", start_pos, end_pos)
+            
+            # 更新搜索起始位置
+            start_pos = end_pos
+        
+        # 配置选中高亮样式（使用不同的颜色和样式）
+        self.sentence_text.tag_config("selected", 
+                                    foreground="blue",  # 使用蓝色
+                                    font=("Arial", 10, "bold", "underline"),  # 加粗和下划线
+                                    background="#FFFF00")  # 黄色背景
+        
+        # 禁用文本编辑
+        self.sentence_text.config(state=tk.DISABLED)
+        
+        # 确保选中的单词可见（只有在找到单词时才滚动）
+        if found and last_valid_pos:
+            self.sentence_text.see(last_valid_pos)
     
     def query_word_details(self, word):
         """查询单词详情"""
@@ -835,7 +935,7 @@ class WordLearnerApp:
     def create_statusbar(self):
         """创建状态栏"""
         self.status_bar = ttk.Label(self.root, text="就绪", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=self.navbar)
     
     def set_styles(self):
         """设置界面样式"""
@@ -851,6 +951,79 @@ class WordLearnerApp:
         style.configure("TFrame", background="#f0f0f0")
         style.configure("TLabelframe", background="#f0f0f0")
         style.configure("TLabelframe.Label", font=("Arial", 10, "bold"))
+
+    def highlight_words(self, text, words):
+        """高亮显示文本中的单词"""
+        # 启用文本编辑
+        self.sentence_text.config(state=tk.NORMAL)
+        
+        # 清除现有高亮
+        self.sentence_text.tag_remove("highlight", "1.0", tk.END)
+        
+        for word in words:
+            start_pos = "1.0"
+            while True:
+                # 查找单词（不区分大小写）
+                start_pos = self.sentence_text.search(r'\y' + word + r'\y', start_pos, tk.END, nocase=True, regexp=True)
+                if not start_pos:
+                    break
+                    
+                # 计算结束位置
+                end_pos = f"{start_pos}+{len(word)}c"
+                
+                # 添加高亮标签
+                self.sentence_text.tag_add("highlight", start_pos, end_pos)
+                
+                # 更新搜索起始位置
+                start_pos = end_pos
+        
+        # 配置高亮样式
+        self.sentence_text.tag_config("highlight", foreground="red", font=("Arial", 10, "bold"))
+        
+        # 禁用文本编辑
+        self.sentence_text.config(state=tk.DISABLED)
+
+    def read_description(self):
+        """朗读图片描述"""
+        if not self.sentence_text.get(1.0, tk.END).strip():
+            messagebox.showinfo("提示", "没有可朗读的描述")
+            return
+            
+        description = self.sentence_text.get(1.0, tk.END).strip()
+        success, message = pronounce_word(description)
+        if not success:
+            self.status_bar.config(text=message)
+
+    def translate_description(self):
+        """翻译图片描述"""
+        if not self.sentence_text.get(1.0, tk.END).strip():
+            messagebox.showinfo("提示", "没有可翻译的描述")
+            return
+            
+        description = self.sentence_text.get(1.0, tk.END).strip()
+        
+        try:
+            # 显示加载状态
+            self.status_bar.config(text="正在翻译...")
+            self.root.update()
+            
+            # 调用API翻译
+            success, message, translation = self.api_service.translate_text(description)
+            
+            if success:
+                # 更新翻译显示
+                self.translation_text.config(state=tk.NORMAL)
+                self.translation_text.delete(1.0, tk.END)
+                self.translation_text.insert(tk.END, translation)
+                self.translation_text.config(state=tk.DISABLED)
+                
+                self.status_bar.config(text="翻译完成")
+            else:
+                self.status_bar.config(text=message)
+                messagebox.showerror("错误", message)
+        except Exception as e:
+            self.status_bar.config(text=f"翻译过程中出错: {str(e)}")
+            messagebox.showerror("错误", f"翻译过程中出错: {str(e)}")
 
 # 主程序入口
 if __name__ == "__main__":
