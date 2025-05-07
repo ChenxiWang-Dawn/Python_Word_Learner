@@ -670,6 +670,16 @@ class WordLearnerApp:
             self.root.update_idletasks()
             self.root.update()
         else:
+            # 检查是否已经识别了文字
+            if not self.recognized_words:
+                messagebox.showinfo("提示", "请先识别图片中的单词")
+                return
+                
+            # 检查是否有描述文本
+            if not self.sentence_text.get(1.0, tk.END).strip():
+                messagebox.showinfo("提示", "没有可用的描述文本")
+                return
+                
             # 开始填词
             self.start_fill_words()
             self.fill_words_btn.config(text="结束填词")
@@ -1285,11 +1295,13 @@ class WordLearnerApp:
         # 创建填词文本
         fill_text = original_text
         for word in sorted_words:
-            # 记录单词的位置
-            start_pos = fill_text.find(word)
+            # 记录单词的位置（忽略大小写）
+            start_pos = fill_text.lower().find(word.lower())
             if start_pos != -1:
+                # 保存原始单词（保持原始大小写）
+                original_word = fill_text[start_pos:start_pos + len(word)]
                 self.word_positions.append({
-                    'word': word,
+                    'word': original_word,  # 使用原始大小写的单词
                     'start': start_pos,
                     'end': start_pos + len(word)
                 })
@@ -1320,7 +1332,7 @@ class WordLearnerApp:
             # 创建单词的输入框容器
             word_frame = ttk.Frame(self.fill_words_frame)
             
-            # 添加首字母标签
+            # 添加首字母标签（使用原始大小写）
             first_letter_label = ttk.Label(word_frame, text=pos['word'][0], font=("Arial", 13, "bold"))
             first_letter_label.pack(side=tk.LEFT, padx=(0, 2))
             
@@ -1436,6 +1448,8 @@ class WordLearnerApp:
                 self.hint_btn.config(state=tk.DISABLED)
             # 播放完成音效
             self.play_completion_sound()
+            # 显示恭喜弹层
+            self.show_congratulations()
         else:
             self.status_bar.config(text=f"已正确填写 {correct_count}/{total_words} 个单词")
             # 检查提示按钮是否存在
@@ -1501,6 +1515,72 @@ class WordLearnerApp:
                 break
         
         return "break"  # 阻止默认的Tab行为
+
+    def show_congratulations(self):
+        """显示恭喜弹层"""
+        # 创建弹层窗口
+        congrats_window = tk.Toplevel(self.root)
+        congrats_window.title("恭喜")
+        
+        # 设置弹层窗口大小
+        window_width = 300
+        window_height = 200
+        
+        # 计算窗口位置（居中显示）
+        x = self.root.winfo_x() + (self.root.winfo_width() - window_width) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - window_height) // 2
+        congrats_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # 设置弹层窗口样式
+        congrats_window.configure(bg='#e8f4f8')  # 浅蓝色背景
+        congrats_window.attributes('-topmost', True)  # 保持在最顶层
+        
+        # 创建内容框架
+        content_frame = ttk.Frame(congrats_window, padding="20")
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 添加图标
+        icon_label = ttk.Label(content_frame, 
+                             text="🎉", 
+                             font=("Arial", 48),
+                             background="#e8f4f8",
+                             foreground="#2c7da0")
+        icon_label.pack(pady=(0, 10))
+        
+        # 添加恭喜文本
+        congrats_label = ttk.Label(content_frame, 
+                                 text="恭喜！", 
+                                 font=("Arial", 24, "bold"),
+                                 background="#e8f4f8",
+                                 foreground="#1a5276")
+        congrats_label.pack(pady=(0, 5))
+        
+        # 添加完成文本
+        complete_label = ttk.Label(content_frame,
+                                 text="所有单词都填写正确！",
+                                 font=("Arial", 14),
+                                 background="#e8f4f8",
+                                 foreground="#2874a6")
+        complete_label.pack(pady=(0, 10))
+        
+        # 添加倒计时标签
+        countdown_label = ttk.Label(content_frame,
+                                  text="3",
+                                  font=("Arial", 12),
+                                  background="#e8f4f8",
+                                  foreground="#3498db")
+        countdown_label.pack(pady=(0, 10))
+        
+        # 倒计时函数
+        def update_countdown(count):
+            if count > 0:
+                countdown_label.config(text=str(count))
+                congrats_window.after(1000, update_countdown, count - 1)
+            else:
+                congrats_window.destroy()
+        
+        # 开始倒计时
+        update_countdown(3)
 
 # 主程序入口
 if __name__ == "__main__":
