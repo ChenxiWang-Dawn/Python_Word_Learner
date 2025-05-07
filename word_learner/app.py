@@ -488,8 +488,8 @@ class WordLearnerApp:
         left_frame = ttk.Frame(page, width=500)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        right_frame = ttk.Frame(page, width=500)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        self.right_frame = ttk.Frame(page, width=500)  # 保存right_frame的引用
+        self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
         # 左侧图片区域
         self.image_frame = ttk.LabelFrame(left_frame, text="图片")
@@ -535,7 +535,7 @@ class WordLearnerApp:
         
         # 右侧单词区域
         # 单词列表区域
-        self.word_list_frame = ttk.LabelFrame(right_frame, text="识别到的单词")
+        self.word_list_frame = ttk.LabelFrame(self.right_frame, text="识别到的单词")
         self.word_list_frame.pack(fill=tk.BOTH, expand=False, pady=5, ipady=5)
         
         # 单词列表
@@ -544,7 +544,7 @@ class WordLearnerApp:
         self.word_listbox.bind('<<ListboxSelect>>', self.on_word_select)
         
         # 单词详情区域
-        self.word_detail_frame = ttk.LabelFrame(right_frame, text="单词详情")
+        self.word_detail_frame = ttk.LabelFrame(self.right_frame, text="单词详情")
         self.word_detail_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # 单词标签
@@ -588,6 +588,65 @@ class WordLearnerApp:
         
         return page
     
+    def create_overlay(self):
+        """创建右侧区域的蒙层"""
+        # 创建蒙层框架
+        self.overlay = ttk.Frame(self.right_frame)
+        self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        
+        # 创建样式
+        style = ttk.Style()
+        style.configure("Overlay.TFrame", 
+                       background="#e8f4f8")  # 浅蓝色背景
+        
+        # 设置蒙层样式
+        self.overlay.configure(style="Overlay.TFrame")
+        
+        # 创建内容容器
+        content_frame = ttk.Frame(self.overlay)
+        content_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        
+        # 添加图标（使用文本符号代替）
+        icon_label = ttk.Label(content_frame, 
+                             text="✏️", 
+                             font=("Arial", 48),
+                             background="#e8f4f8",
+                             foreground="#2c7da0")
+        icon_label.pack(pady=(0, 20))
+        
+        # 添加主标题
+        title_label = ttk.Label(content_frame, 
+                              text="填词练习中", 
+                              font=("Arial", 24, "bold"),
+                              background="#e8f4f8",
+                              foreground="#1a5276")  # 深蓝色文字
+        title_label.pack(pady=(0, 10))
+        
+        # 添加副标题
+        subtitle_label = ttk.Label(content_frame,
+                                 text="请专注于填写单词",
+                                 font=("Arial", 14),
+                                 background="#e8f4f8",
+                                 foreground="#2874a6")  # 中蓝色文字
+        subtitle_label.pack()
+        
+        # 添加提示文本
+        hint_label = ttk.Label(content_frame,
+                             text='完成后点击"结束填词"按钮',
+                             font=("Arial", 12),
+                             background="#e8f4f8",
+                             foreground="#3498db")  # 浅蓝色文字
+        hint_label.pack(pady=(20, 0))
+        
+        # 将蒙层置于顶层
+        self.overlay.lift()
+    
+    def remove_overlay(self):
+        """移除右侧区域的蒙层"""
+        if hasattr(self, 'overlay'):
+            self.overlay.destroy()
+            delattr(self, 'overlay')
+
     def toggle_fill_words(self):
         """切换填词练习状态"""
         if self.fill_words_frame.winfo_ismapped():  # 如果填词区域当前是显示的
@@ -604,6 +663,9 @@ class WordLearnerApp:
             self.fill_words_btn.config(text="开始填词")
             self.status_bar.config(text="填词练习已结束")
             
+            # 移除蒙层
+            self.remove_overlay()
+            
             # 强制立即更新界面
             self.root.update_idletasks()
             self.root.update()
@@ -611,6 +673,10 @@ class WordLearnerApp:
             # 开始填词
             self.start_fill_words()
             self.fill_words_btn.config(text="结束填词")
+            
+            # 添加蒙层
+            self.create_overlay()
+            
             self.root.update_idletasks()
             self.root.update()
     
@@ -1010,6 +1076,18 @@ class WordLearnerApp:
         style.configure("TFrame", background="#f0f0f0")
         style.configure("TLabelframe", background="#f0f0f0")
         style.configure("TLabelframe.Label", font=("Arial", 10, "bold"))
+        
+        # 提示按钮样式
+        style.configure("Hint.TButton",
+                       padding=(15, 8),
+                       font=("Arial", 11),
+                       background="#3498db",
+                       foreground="white")
+        
+        # 鼠标悬停效果
+        style.map("Hint.TButton",
+                 background=[("active", "#2980b9")],
+                 foreground=[("active", "white")])
 
     def highlight_words(self, text, words):
         """高亮显示文本中的单词"""
@@ -1083,6 +1161,108 @@ class WordLearnerApp:
         except Exception as e:
             self.status_bar.config(text=f"翻译过程中出错: {str(e)}")
             messagebox.showerror("错误", f"翻译过程中出错: {str(e)}")
+
+    def show_hint(self):
+        """显示当前单词的提示"""
+        # 获取当前焦点所在的输入框
+        focused_widget = self.root.focus_get()
+        
+        # 检查是否是Text控件
+        if not isinstance(focused_widget, tk.Text):
+            # 如果没有焦点在输入框上，尝试获取最后一个有焦点的输入框
+            if hasattr(self, 'last_focused_entry') and self.last_focused_entry:
+                focused_widget = self.last_focused_entry
+                focused_widget.focus_set()
+            else:
+                self.status_bar.config(text="请先选择一个输入框")
+                return
+        
+        # 找到对应的单词和输入框
+        current_word = None
+        current_entry_index = -1
+        current_word_index = -1  # 当前是第几个单词
+        
+        # 获取所有单词位置，按起始位置排序
+        sorted_positions = sorted(self.word_positions, key=lambda x: x['start'])
+        
+        # 遍历所有单词
+        for i, pos in enumerate(sorted_positions):
+            entries = self.word_entries[pos['start']]
+            if focused_widget in entries:
+                current_word = pos['word']
+                current_entry_index = entries.index(focused_widget)
+                current_word_index = i + 1  # 当前是第几个单词（从1开始）
+                break
+        
+        if current_word is None:
+            self.status_bar.config(text="请先选择一个输入框")
+            return
+            
+        # 创建弹层窗口
+        hint_window = tk.Toplevel(self.root)
+        hint_window.title("单词提示")
+        
+        # 设置弹层窗口大小
+        window_width = 300
+        window_height = 150
+        
+        # 计算窗口位置（居中显示）
+        x = self.root.winfo_x() + (self.root.winfo_width() - window_width) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - window_height) // 2
+        hint_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # 设置弹层窗口样式
+        hint_window.configure(bg='#e8f4f8')  # 浅蓝色背景
+        hint_window.attributes('-topmost', True)  # 保持在最顶层
+        
+        # 创建内容框架
+        content_frame = ttk.Frame(hint_window, padding="20")
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 显示当前单词
+        word_label = ttk.Label(content_frame, 
+                             text=current_word,
+                             font=("Arial", 24, "bold"),
+                             foreground="#1a5276")  # 深蓝色文字
+        word_label.pack(pady=(0, 10))
+        
+        # 显示当前单词位置和字母位置
+        position_label = ttk.Label(content_frame,
+                                 text=f"第 {current_word_index} 个单词，填写第 {current_entry_index + 2} 个字母",
+                                 font=("Arial", 12),
+                                 foreground="#2874a6")  # 中蓝色文字
+        position_label.pack(pady=(0, 10))
+        
+        # 添加倒计时标签
+        countdown_label = ttk.Label(content_frame,
+                                  text="3",
+                                  font=("Arial", 12),
+                                  foreground="#3498db")  # 浅蓝色文字
+        countdown_label.pack(pady=(0, 10))
+        
+        # 添加关闭按钮
+        close_button = ttk.Button(content_frame,
+                                text="关闭",
+                                command=hint_window.destroy)
+        close_button.pack()
+        
+        # 倒计时函数
+        def update_countdown(count):
+            if count > 0:
+                countdown_label.config(text=str(count))
+                hint_window.after(1000, update_countdown, count - 1)
+            else:
+                hint_window.destroy()
+        
+        # 开始倒计时
+        update_countdown(3)
+        
+        # 更新状态栏
+        self.status_bar.config(text=f"提示：显示当前单词")
+
+    def on_entry_focus(self, event):
+        """当输入框获得焦点时"""
+        self.last_focused_entry = event.widget
 
     def start_fill_words(self):
         """开始填词练习"""
@@ -1163,6 +1343,15 @@ class WordLearnerApp:
                 entry.bind('<KeyRelease>', lambda e, word=pos['word'], index=i: self.check_single_letter(e, word, index))
                 entry.bind('<Tab>', self.move_to_next_letter)
                 
+                # 确保输入框可以接收焦点
+                entry.config(takefocus=1)
+                
+                # 绑定点击事件
+                entry.bind('<Button-1>', lambda e: e.widget.focus_set())
+                
+                # 绑定焦点事件
+                entry.bind('<FocusIn>', self.on_entry_focus)
+                
                 letter_entries.append(entry)
             
             # 存储这个单词的所有输入框
@@ -1189,13 +1378,22 @@ class WordLearnerApp:
         if self.word_entries:
             first_word_entries = next(iter(self.word_entries.values()))
             first_word_entries[0].focus_set()
+            # 初始化最后一个焦点输入框
+            self.last_focused_entry = first_word_entries[0]
         
         # 更新状态栏
         self.status_bar.config(text="开始填词练习，输入正确的单词，按Tab键切换到下一个位置")
         
+        # 创建按钮容器
+        button_frame = ttk.Frame(self.fill_words_frame)
+        button_frame.pack(pady=10)
+        
         # 添加提示按钮
         if not hasattr(self, 'hint_btn'):
-            self.hint_btn = ttk.Button(self.fill_words_frame, text="显示提示", command=self.show_hint)
+            self.hint_btn = ttk.Button(button_frame, 
+                                     text="💡 提示", 
+                                     style="Hint.TButton",
+                                     command=self.show_hint)
             self.hint_btn.pack(pady=5)
 
     def check_single_letter(self, event, correct_word, letter_index):
@@ -1233,12 +1431,16 @@ class WordLearnerApp:
         total_words = len(self.recognized_words)
         if correct_count == total_words:
             self.status_bar.config(text="恭喜！所有单词都填写正确！")
-            self.hint_btn.config(state=tk.DISABLED)
+            # 检查提示按钮是否存在
+            if hasattr(self, 'hint_btn') and self.hint_btn.winfo_exists():
+                self.hint_btn.config(state=tk.DISABLED)
             # 播放完成音效
             self.play_completion_sound()
         else:
             self.status_bar.config(text=f"已正确填写 {correct_count}/{total_words} 个单词")
-            self.hint_btn.config(state=tk.NORMAL)
+            # 检查提示按钮是否存在
+            if hasattr(self, 'hint_btn') and self.hint_btn.winfo_exists():
+                self.hint_btn.config(state=tk.NORMAL)
 
     def move_to_next_letter_auto(self, current_entry):
         """自动移动到下一个字母输入框"""
@@ -1259,31 +1461,6 @@ class WordLearnerApp:
                         if next_word_found:
                             next_entries[0].focus_set()
                             break
-                break
-
-    def show_hint(self):
-        """显示当前单词的提示"""
-        # 获取当前焦点所在的输入框
-        focused_widget = self.fill_words_frame.focus_get()
-        if not isinstance(focused_widget, ttk.Entry):
-            return
-        
-        # 找到对应的单词
-        for pos, entries in self.word_entries.items():
-            if focused_widget in entries:
-                word = next(p['word'] for p in self.word_positions if p['start'] == pos)
-                # 显示提示（显示单词的前两个字母）
-                hint = word[:2]
-                # 保留首字母
-                for entry in entries:
-                    entry.delete(0, tk.END)
-                    entry.insert(0, hint)
-                # 将光标移动到第二个字母后面
-                for i, entry in enumerate(entries):
-                    if i > 0:
-                        entry.icursor(1)
-                # 更新状态栏
-                self.status_bar.config(text=f"提示：单词以 '{hint}' 开头")
                 break
 
     def play_completion_sound(self):
