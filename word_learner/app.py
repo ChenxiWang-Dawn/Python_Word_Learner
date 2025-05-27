@@ -495,9 +495,9 @@ class WordLearnerApp:
         self.image_frame = ttk.LabelFrame(left_frame, text="图片")
         self.image_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # 图片标签
-        self.image_label = ttk.Label(self.image_frame)
-        self.image_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 图片区域改为Canvas
+        self.image_canvas = tk.Canvas(self.image_frame, width=400, height=300)
+        self.image_canvas.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # 添加句子显示区域
         self.sentence_frame = ttk.LabelFrame(left_frame, text="图片描述")
@@ -534,11 +534,11 @@ class WordLearnerApp:
         self.fill_words_btn.pack(side=tk.LEFT, padx=5)
         
         # 右侧单词区域
-        # 单词列表区域
+        # 单词列表区域 (移除这部分)
         self.word_list_frame = ttk.LabelFrame(self.right_frame, text="识别到的单词")
         self.word_list_frame.pack(fill=tk.BOTH, expand=False, pady=5, ipady=5)
         
-        # 单词列表
+        # 单词列表 (移除这部分)
         self.word_listbox = tk.Listbox(self.word_list_frame, height=6)
         self.word_listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.word_listbox.bind('<<ListboxSelect>>', self.on_word_select)
@@ -768,7 +768,7 @@ class WordLearnerApp:
             messagebox.showerror("错误", f"无法加载图片: {str(e)}")
     
     def recognize_text(self):
-        """识别图片中的文字"""
+        """识别图片中的文字，并获取原始图片尺寸进行坐标缩放"""
         if not self.current_image_path:
             messagebox.showerror("错误", "请先选择图片")
             return
@@ -777,34 +777,54 @@ class WordLearnerApp:
             # 显示加载状态
             self.status_bar.config(text="正在识别图片...")
             self.root.update()
+
+            # 获取原始图片尺寸
+            try:
+                original_image = Image.open(self.current_image_path)
+                original_img_width, original_img_height = original_image.size
+            except Exception as e:
+                messagebox.showerror("错误", f"无法读取图片尺寸: {e}")
+                self.status_bar.config(text="图片尺寸读取失败")
+                return
             
             # 调用API识别文字
-            success, message, words, description = self.api_service.recognize_text(self.current_image_path)
+            # api_service.recognize_text 返回: success, message, words, positions, sentence
+            success, message, recognized_words_list, recognized_words_positions, description = self.api_service.recognize_text(self.current_image_path)
             
             if success:
-                # 更新识别的单词列表
-                self.recognized_words = words
+                self.recognized_words = recognized_words_list # 直接使用返回的单词列表
                 
-                # 清空现有单词
+                # 更新单词列表框
                 self.word_listbox.delete(0, tk.END)
-                
-                # 添加新识别的单词
-                for word in words:
+                for word in self.recognized_words:
                     self.word_listbox.insert(tk.END, word)
+                
+                # 重新显示图片 (display_image 会将图片resize到400x300)
+                # self.display_image(original_image) # 可以直接传递原始Pillow Image对象
+                # 或者如果 self.current_image_path 已经是PIL Image对象，则不需要再次打开
+                if isinstance(self.current_image_path, str): # 如果是路径，则打开
+                    img_to_display = Image.open(self.current_image_path)
+                else: # 如果已经是Image对象
+                    img_to_display = self.current_image_path 
+                self.display_image(img_to_display)
+                
+                # 在图片上绘制单词标签，传入原始尺寸用于缩放
+                self.draw_word_labels(self.recognized_words, recognized_words_positions, original_img_width, original_img_height)
                 
                 # 更新图片描述
                 self.sentence_text.config(state=tk.NORMAL)
                 self.sentence_text.delete(1.0, tk.END)
-                self.sentence_text.insert(tk.END, description)
+                self.sentence_text.insert(tk.END, description) # 使用API返回的句子
                 self.sentence_text.config(state=tk.DISABLED)
                 
-                # 高亮显示识别到的单词
-                self.highlight_words(description, words)
+                # 高亮显示识别到的单词 (如果需要)
+                self.highlight_words(description, self.recognized_words)
                 
-                # 如果有单词，选中第一个
-                if words:
-                    self.word_listbox.selection_set(0)
-                    self.on_word_select(None)
+                # 如果有单词，并且希望默认选中第一个并查询详情
+                if self.recognized_words:
+                    self.word_listbox.selection_set(0) # 选中列表中的第一个单词
+                    self.on_word_select(None) # 触发选中事件，None作为event参数
+                    # 或者直接调用 self.on_word_label_click(0) 如果标签点击和列表选择逻辑一致
                 
                 self.status_bar.config(text=message)
             else:
@@ -1051,21 +1071,15 @@ class WordLearnerApp:
     
     def show_default_image(self):
         """显示默认图片"""
-        # 创建一个带有提示文本的空白图片
         img = Image.new('RGB', (400, 300), color=(240, 240, 240))
         self.display_image(img)
     
     def display_image(self, img):
-        """在界面上显示图片"""
-        # 调整图片大小以适应显示区域
+        """在界面上显示图片（在Canvas上）"""
         img = resize_image(img, 400, 300)
-        
-        # 转换为PhotoImage
-        photo = ImageTk.PhotoImage(img)
-        
-        # 更新图片标签
-        self.image_label.config(image=photo)
-        self.image_label.image = photo  # 保持引用以防止垃圾回收
+        self._canvas_img = ImageTk.PhotoImage(img)
+        self.image_canvas.delete("all")
+        self.image_canvas.create_image(0, 0, anchor=tk.NW, image=self._canvas_img)
     
     def create_statusbar(self):
         """创建状态栏"""
@@ -1101,34 +1115,141 @@ class WordLearnerApp:
 
     def highlight_words(self, text, words):
         """高亮显示文本中的单词"""
-        # 启用文本编辑
         self.sentence_text.config(state=tk.NORMAL)
-        
-        # 清除现有高亮
         self.sentence_text.tag_remove("highlight", "1.0", tk.END)
-        
         for word in words:
             start_pos = "1.0"
             while True:
-                # 查找单词（不区分大小写）
                 start_pos = self.sentence_text.search(r'\y' + word + r'\y', start_pos, tk.END, nocase=True, regexp=True)
                 if not start_pos:
                     break
-                    
-                # 计算结束位置
                 end_pos = f"{start_pos}+{len(word)}c"
-                
-                # 添加高亮标签
                 self.sentence_text.tag_add("highlight", start_pos, end_pos)
-                
-                # 更新搜索起始位置
                 start_pos = end_pos
-        
-        # 配置高亮样式
         self.sentence_text.tag_config("highlight", foreground="red", font=("Arial", 10, "bold"))
-        
-        # 禁用文本编辑
         self.sentence_text.config(state=tk.DISABLED)
+
+    def draw_word_labels(self, words, positions, original_width, original_height):
+        """在图片Canvas上根据大模型返回的坐标绘制单词标签，并进行缩放和避让。"""
+        self.image_canvas.delete("word_label")
+        
+        canvas_width = 400  # Canvas的目标宽度
+        canvas_height = 300 # Canvas的目标高度
+
+        if original_width == 0 or original_height == 0:
+            print("警告: 原始图片尺寸为0，无法进行坐标缩放。")
+            self.status_bar.config(text="警告: 原始图片尺寸为0，无法缩放标签。")
+            return
+            
+        scale_x = canvas_width / original_width
+        scale_y = canvas_height / original_height
+
+        if not words or not positions or len(words) != len(positions):
+            self.status_bar.config(text="警告: 单词或位置信息不完整，部分标签可能无法显示。")
+            if words and positions:
+                min_len = min(len(words), len(positions))
+                words = words[:min_len]
+                positions = positions[:min_len]
+            else:
+                return
+
+        drawn_rects = [] # 用于存储已绘制标签的边界框 (x1, y1, x2, y2)
+
+        for i, word in enumerate(words):
+            if i < len(positions) and positions[i] and isinstance(positions[i], list) and len(positions[i]) == 2:
+                pos_original = positions[i]
+                x_orig, y_orig = pos_original[0], pos_original[1]
+                
+                x_center_scaled = x_orig * scale_x
+                y_center_scaled = y_orig * scale_y
+
+                font_size = 10 
+                padding = 3 
+                text_width_estimate = len(word) * font_size * 0.65
+                text_height_estimate = font_size + 2 * padding
+
+                # 初始尝试位置
+                current_x_center = x_center_scaled
+                current_y_center = y_center_scaled
+                
+                max_attempts = 10 # 最多尝试调整次数
+                attempt = 0
+                overlap = True
+
+                while overlap and attempt < max_attempts:
+                    overlap = False
+                    rect_x1 = current_x_center - text_width_estimate / 2 - padding
+                    rect_y1 = current_y_center - text_height_estimate / 2 - padding
+                    rect_x2 = current_x_center + text_width_estimate / 2 + padding
+                    rect_y2 = current_y_center + text_height_estimate / 2 + padding
+
+                    # 检查与已绘制矩形的重叠
+                    for dr_x1, dr_y1, dr_x2, dr_y2 in drawn_rects:
+                        # 基本的AABB重叠检测
+                        if not (rect_x2 < dr_x1 or rect_x1 > dr_x2 or rect_y2 < dr_y1 or rect_y1 > dr_y2):
+                            overlap = True
+                            break
+                    
+                    if overlap:
+                        # 尝试微调位置，例如向上移动一点
+                        # 可以实现更复杂的避让策略，如螺旋式搜索等
+                        current_y_center -= (text_height_estimate / 2) # 向上移动半个标签高度
+                        # 也可以尝试其他方向，或增加随机性
+                        # 确保调整后的位置仍在Canvas内 (可选)
+                        current_y_center = max(text_height_estimate / 2, min(current_y_center, canvas_height - text_height_estimate / 2))
+                        current_x_center = max(text_width_estimate / 2, min(current_x_center, canvas_width - text_width_estimate / 2))
+                    
+                    attempt += 1
+                
+                # 如果多次尝试后仍然重叠，可以选择不绘制，或者接受重叠
+                # if overlap:
+                #     print(f"警告: 单词 '{word}' 无法找到不重叠的位置，可能仍会重叠或不显示。")
+                #     # continue # 如果选择不绘制重叠的标签
+
+                rect_tag = f"rect_{i}"
+                text_tag = f"text_{i}"
+                group_tag = f"word_group_{i}"
+
+                self.image_canvas.create_rectangle(rect_x1, rect_y1, rect_x2, rect_y2, 
+                                                   fill="#FFFFE0", 
+                                                   outline="#FFA500", 
+                                                   tags=("word_label", rect_tag, group_tag))
+                
+                self.image_canvas.create_text(current_x_center, current_y_center, 
+                                              text=word, 
+                                              fill="#FF4500", 
+                                              font=("Arial", font_size, "bold"), 
+                                              anchor=tk.CENTER,
+                                              tags=("word_label", text_tag, group_tag))
+                
+                # 记录这个成功绘制的标签的边界框
+                if not overlap: # 或者即使重叠也记录，取决于策略
+                    drawn_rects.append((rect_x1, rect_y1, rect_x2, rect_y2))
+                
+                self.image_canvas.tag_bind(group_tag, "<Button-1>", lambda e, idx=i: self.on_word_label_click(idx))
+            else:
+                self.status_bar.config(text=f"警告: 单词'{word}'位置信息异常")
+
+    def on_word_label_click(self, index):
+        """点击图片上的单词标签时，显示单词详情"""
+        if index < len(self.recognized_words):
+            self.current_word_index = index
+            word = self.recognized_words[index]
+            self.word_label.config(text=word)
+            
+            # 清空之前的详情
+            self.phonetic_label.config(text="")
+            self.translation_text.config(state=tk.NORMAL)
+            self.translation_text.delete(1.0, tk.END)
+            self.translation_text.config(state=tk.DISABLED)
+            self.example_text.config(state=tk.NORMAL)
+            self.example_text.delete(1.0, tk.END)
+            self.example_text.config(state=tk.DISABLED)
+            
+            self.highlight_selected_word(word) # 高亮图片描述中的词（如果保留该功能）
+            self.query_word_details(word)
+        # else:
+            # print(f"Error: Word index {index} out of bounds for recognized_words.") # 日志
 
     def read_description(self):
         """朗读图片描述"""
