@@ -51,6 +51,9 @@ class WordLearnerApp:
         # 初始化数据库
         self.init_database()
         
+        # 初始化主题系统
+        self.init_themes()
+        
         # 设置样式（在创建UI之前）
         self.set_styles()
         
@@ -132,6 +135,78 @@ class WordLearnerApp:
 
         conn.commit()
         conn.close()
+    
+    def init_themes(self):
+        """初始化主题系统"""
+        # 默认主题
+        self.current_theme = "blue"
+        
+        # 主题配置
+        self.themes = {
+            "blue": {
+                "name": "蓝色主题",
+                "primary": "#3670ee",      # RGB(54, 112, 238)
+                "primary_hover": "#2861de", # RGB(40, 97, 222)
+                "description": "经典蓝色，专业稳重"
+            },
+            "orange": {
+                "name": "橙色主题", 
+                "primary": "#e67e22",      # 优化后的橙色，更温和
+                "primary_hover": "#d35400", # 深橙色，对比更明显
+                "description": "温暖橙色，活力舒适"
+            },
+            "green": {
+                "name": "深绿主题",
+                "primary": "#27ae60",      # 深绿色，专业感
+                "primary_hover": "#1e8449", # 更深的绿色
+                "description": "自然绿色，清新护眼"
+            }
+        }
+    
+    def load_settings(self):
+        """加载用户设置"""
+        try:
+            # 从数据库或配置文件加载主题设置
+            # 这里暂时使用默认值，您可以后续添加持久化存储
+            pass
+        except:
+            pass
+    
+    def save_theme_setting(self, theme_name):
+        """保存主题设置"""
+        self.current_theme = theme_name
+        # 这里可以添加到数据库或配置文件的持久化存储
+        # 暂时只在内存中保存
+        
+        # 更新所有相关组件的样式
+        self.update_theme_colors()
+    
+    def update_theme_colors(self):
+        """更新主题颜色"""
+        # 重新设置样式
+        self.set_styles()
+        
+        # 更新导航栏按钮颜色
+        if hasattr(self, 'nav_buttons'):
+            # 更新拍照按钮的颜色为当前主题色
+            if "camera" in self.nav_buttons:
+                current_theme_config = self.themes[self.current_theme]
+                btn = self.nav_buttons["camera"]
+                btn["color"] = current_theme_config["primary"]
+                
+                # 如果是当前活跃按钮，立即更新颜色
+                if hasattr(self, 'active_nav_button') and self.active_nav_button == "camera":
+                    self.update_nav_active_state("camera")
+    
+    def on_theme_change(self, theme_key):
+        """处理主题切换"""
+        if theme_key != self.current_theme:
+            self.save_theme_setting(theme_key)
+            
+            # 显示提示信息
+            if hasattr(self, 'status_bar'):
+                theme_name = self.themes[theme_key]["name"]
+                self.status_bar.config(text=f"已切换到 {theme_name}")
     
     def create_ui(self):
         """创建现代化用户界面"""
@@ -255,9 +330,12 @@ class WordLearnerApp:
         shadow_frame = tk.Frame(self.navbar_container, bg="#e2e8f0", height=1)
         shadow_frame.pack(fill=tk.X, side=tk.TOP)
         
+        # 获取当前主题配置
+        theme_config = self.themes[self.current_theme]
+        
         # 导航按钮数据 - 包含图标和文字
         nav_items = [
-            {"name": "camera", "icon": "📷", "text": "拍照识别", "color": "#3b82f6"},
+            {"name": "camera", "icon": "📷", "text": "拍照识别", "color": theme_config['primary']},
             {"name": "wordbook", "icon": "📚", "text": "生词本", "color": "#10b981"},
             {"name": "album", "icon": "🖼️", "text": "相册", "color": "#f59e0b"},
             {"name": "words", "icon": "📖", "text": "单词", "color": "#8b5cf6"},
@@ -636,6 +714,47 @@ class WordLearnerApp:
         self.show_key_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(settings_frame, text="显示密钥", variable=self.show_key_var, 
                        command=lambda: api_key_entry.config(show="" if self.show_key_var.get() else "*")).pack(anchor=tk.W, padx=10)
+        
+        # 主题设置
+        theme_frame = ttk.LabelFrame(page, text="主题设置")
+        theme_frame.pack(fill=tk.BOTH, expand=False, padx=20, pady=20)
+        
+        ttk.Label(theme_frame, text="选择应用主题:").pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        # 主题选择变量
+        self.theme_var = tk.StringVar(value=self.current_theme)
+        
+        # 主题选择框架
+        theme_selection_frame = ttk.Frame(theme_frame)
+        theme_selection_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        # 创建主题选择按钮
+        for theme_key, theme_info in self.themes.items():
+            theme_btn_frame = ttk.Frame(theme_selection_frame)
+            theme_btn_frame.pack(fill=tk.X, pady=5)
+            
+            # 主题单选按钮
+            theme_radio = ttk.Radiobutton(
+                theme_btn_frame,
+                text=theme_info["name"],
+                variable=self.theme_var,
+                value=theme_key,
+                command=lambda key=theme_key: self.on_theme_change(key)
+            )
+            theme_radio.pack(side=tk.LEFT)
+            
+            # 主题颜色预览
+            color_preview = tk.Frame(theme_btn_frame, 
+                                   bg=theme_info["primary"], 
+                                   width=30, height=20)
+            color_preview.pack(side=tk.LEFT, padx=(10, 5))
+            color_preview.pack_propagate(False)
+            
+            # 主题描述
+            ttk.Label(theme_btn_frame, 
+                     text=theme_info["description"],
+                     font=("SF Pro Display", 10),
+                     foreground="#6b7280").pack(side=tk.LEFT, padx=(5, 0))
         
         # 保存按钮
         ttk.Button(settings_frame, text="保存设置", command=self.save_settings).pack(anchor=tk.W, padx=10, pady=10)
@@ -1374,10 +1493,13 @@ class WordLearnerApp:
         if 'clam' in style.theme_names():
             style.theme_use('clam')
         
-        # 定义现代化配色方案
+        # 获取当前主题配置
+        theme_config = self.themes[self.current_theme]
+        
+        # 定义现代化配色方案（使用主题颜色）
         colors = {
-            'primary': '#3670ee',      # 自定义蓝色 RGB(54, 112, 238)
-            'primary_dark': '#2861de', # 自定义深蓝色 RGB(40, 97, 222)
+            'primary': theme_config['primary'],      # 主题主色
+            'primary_dark': theme_config['primary_hover'], # 主题深色
             'secondary': '#10b981',    # 翠绿
             'accent': '#f59e0b',       # 橙色
             'background': '#f8fafc',   # 浅灰白
