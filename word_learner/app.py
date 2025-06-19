@@ -208,6 +208,141 @@ class WordLearnerApp:
                 theme_name = self.themes[theme_key]["name"]
                 self.status_bar.config(text=f"已切换到 {theme_name}")
     
+    def show_help(self):
+        """显示帮助弹窗"""
+        # 创建帮助对话框
+        help_dialog = tk.Toplevel(self.root)
+        help_dialog.title("📚 拍照学单词 - 使用帮助")
+        help_dialog.geometry("600x500")
+        help_dialog.transient(self.root)
+        help_dialog.grab_set()
+        help_dialog.resizable(False, False)
+        
+        # 设置对话框居中
+        help_dialog.update_idletasks()
+        x = (help_dialog.winfo_screenwidth() // 2) - (600 // 2)
+        y = (help_dialog.winfo_screenheight() // 2) - (500 // 2)
+        help_dialog.geometry(f"600x500+{x}+{y}")
+        
+        # 创建主框架
+        main_frame = ttk.Frame(help_dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 标题
+        title_label = ttk.Label(main_frame, 
+                               text="📚 拍照学单词使用指南", 
+                               font=("SF Pro Display", 18, "bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # 创建滚动框架
+        canvas = tk.Canvas(main_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # 帮助内容
+        help_content = [
+            {
+                "title": "🎯 主要功能",
+                "content": "通过拍照或上传图片并识别文字的方式来学习英语单词，让学习更直观有趣！"
+            },
+            {
+                "title": "📷 拍照识别",
+                "steps": [
+                    "点击底部导航栏的「📷 拍照识别」进入拍照页面",
+                    "点击「拍照」按钮调用摄像头拍摄包含英文的照片",
+                    "或点击「上传图片」选择手机相册中的图片",
+                    "点击「识别文字」自动识别图片中的英文单词"
+                ]
+            },
+            {
+                "title": "📖 单词学习",
+                "steps": [
+                    "识别完成后，在图片上会显示识别到的单词标签",
+                    "点击任意单词标签查看详细释义、音标和例句",
+                    "点击「发音」按钮听取标准读音",
+                    "点击「添加到生词本」收藏重要单词"
+                ]
+            },
+            {
+                "title": "📚 生词本管理",
+                "steps": [
+                    "在「📚 生词本」页面查看已收藏的单词",
+                    "支持搜索和排序功能，快速找到目标单词",
+                    "可以查看单词详情、删除不需要的单词",
+                    "支持导出生词本为文件保存"
+                ]
+            },
+            {
+                "title": "🎯 练习复习",
+                "steps": [
+                    "在「🔄 复习」页面进行单词复习测试",
+                    "在「📖 单词」页面进行填词练习",
+                    "系统会根据你的学习情况智能安排复习计划",
+                    "多种练习模式帮助巩固记忆"
+                ]
+            },
+            {
+                "title": "⚙️ 个性化设置",
+                "steps": [
+                    "在「⚙️ 设置」页面配置API密钥启用在线查询",
+                    "选择喜欢的应用主题（蓝色/橙色/深绿）",
+                    "自定义学习偏好和界面样式"
+                ]
+            }
+        ]
+        
+        # 添加帮助内容
+        for item in help_content:
+            # 章节标题
+            section_frame = ttk.Frame(scrollable_frame)
+            section_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            title_label = ttk.Label(section_frame, 
+                                   text=item["title"], 
+                                   font=("SF Pro Display", 14, "bold"))
+            title_label.pack(anchor=tk.W, pady=(0, 8))
+            
+            if "content" in item:
+                # 简单内容
+                content_label = ttk.Label(section_frame, 
+                                        text=item["content"],
+                                        font=("SF Pro Display", 11),
+                                        wraplength=520,
+                                        justify=tk.LEFT)
+                content_label.pack(anchor=tk.W, padx=(10, 0))
+            
+            elif "steps" in item:
+                # 步骤列表
+                for i, step in enumerate(item["steps"], 1):
+                    step_label = ttk.Label(section_frame, 
+                                         text=f"{i}. {step}",
+                                         font=("SF Pro Display", 11),
+                                         wraplength=500,
+                                         justify=tk.LEFT)
+                    step_label.pack(anchor=tk.W, padx=(10, 0), pady=(2, 0))
+        
+        # 布局滚动组件
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 底部按钮
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        ttk.Button(button_frame, text="知道了", 
+                  command=help_dialog.destroy).pack(side=tk.RIGHT)
+        
+        # 设置焦点
+        help_dialog.focus_set()
+    
     def create_ui(self):
         """创建现代化用户界面"""
         # 创建主框架 - 使用现代化的内边距
@@ -272,7 +407,8 @@ class WordLearnerApp:
         actions_frame.pack(side=tk.RIGHT)
         
         # 添加一些快捷按钮
-        help_btn = ttk.Button(actions_frame, text="❓ 帮助", style="Secondary.TButton")
+        help_btn = ttk.Button(actions_frame, text="❓ 帮助", style="Secondary.TButton",
+                             command=self.show_help)
         help_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
         settings_btn = ttk.Button(actions_frame, text="⚙️ 设置", style="Secondary.TButton",
@@ -1065,35 +1201,86 @@ class WordLearnerApp:
             messagebox.showerror("错误", "请先选择图片")
             return
         
+        # 创建进度条对话框
+        progress_dialog = tk.Toplevel(self.root)
+        progress_dialog.title("识别进度")
+        progress_dialog.geometry("400x150")
+        progress_dialog.transient(self.root)
+        progress_dialog.grab_set()
+        progress_dialog.resizable(False, False)
+        
+        # 设置对话框居中
+        progress_dialog.update_idletasks()
+        x = (progress_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (progress_dialog.winfo_screenheight() // 2) - (150 // 2)
+        progress_dialog.geometry(f"400x150+{x}+{y}")
+        
+        # 进度对话框内容
+        progress_frame = ttk.Frame(progress_dialog)
+        progress_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 标题
+        ttk.Label(progress_frame, text="🔍 正在识别图片中的文字...", 
+                 font=("SF Pro Display", 14, "bold")).pack(pady=(0, 15))
+        
+        # 进度条
+        progress_var = tk.DoubleVar()
+        progress_bar = ttk.Progressbar(progress_frame, variable=progress_var, 
+                                      maximum=100, length=350)
+        progress_bar.pack(pady=(0, 10))
+        
+        # 状态标签
+        status_label = ttk.Label(progress_frame, text="准备开始识别...", 
+                                font=("SF Pro Display", 10))
+        status_label.pack()
+        
+        # 强制更新显示
+        progress_dialog.update()
+        
         try:
-            # 显示加载状态
-            self.status_bar.config(text="正在识别图片...")
-            self.root.update()
-
+            # 步骤1: 读取图片
+            status_label.config(text="正在读取图片...")
+            progress_var.set(20)
+            progress_dialog.update()
+            
             # 获取原始图片尺寸
             try:
                 original_image = Image.open(self.current_image_path)
                 original_img_width, original_img_height = original_image.size
             except Exception as e:
+                progress_dialog.destroy()
                 messagebox.showerror("错误", f"无法读取图片尺寸: {e}")
                 self.status_bar.config(text="图片尺寸读取失败")
                 return
+            
+            # 步骤2: 发送API请求
+            status_label.config(text="正在发送API请求...")
+            progress_var.set(40)
+            progress_dialog.update()
             
             # 调用API识别文字
             # api_service.recognize_text 返回: success, message, words, positions, sentence
             success, message, recognized_words_list, recognized_words_positions, description = self.api_service.recognize_text(self.current_image_path)
             
+            # 步骤3: 处理识别结果
+            status_label.config(text="正在处理识别结果...")
+            progress_var.set(70)
+            progress_dialog.update()
+            
             if success:
                 self.recognized_words = recognized_words_list # 直接使用返回的单词列表
+                
+                # 步骤4: 更新界面
+                status_label.config(text="正在更新界面...")
+                progress_var.set(90)
+                progress_dialog.update()
                 
                 # 更新单词列表框
                 self.word_listbox.delete(0, tk.END)
                 for word in self.recognized_words:
                     self.word_listbox.insert(tk.END, word)
                 
-                # 重新显示图片 (display_image 会将图片resize到400x300)
-                # self.display_image(original_image) # 可以直接传递原始Pillow Image对象
-                # 或者如果 self.current_image_path 已经是PIL Image对象，则不需要再次打开
+                # 重新显示图片
                 if isinstance(self.current_image_path, str): # 如果是路径，则打开
                     img_to_display = Image.open(self.current_image_path)
                 else: # 如果已经是Image对象
@@ -1112,19 +1299,28 @@ class WordLearnerApp:
                 # 高亮显示识别到的单词 (如果需要)
                 self.highlight_words(description, self.recognized_words)
                 
+                # 步骤5: 完成
+                status_label.config(text="识别完成！")
+                progress_var.set(100)
+                progress_dialog.update()
+                
                 # 如果有单词，并且希望默认选中第一个并查询详情
                 if self.recognized_words:
                     self.word_listbox.selection_set(0) # 选中列表中的第一个单词
                     self.on_word_select(None) # 触发选中事件，None作为event参数
-                    # 或者直接调用 self.on_word_label_click(0) 如果标签点击和列表选择逻辑一致
+                
+                # 延迟一点时间让用户看到完成状态，然后关闭进度框
+                self.root.after(500, progress_dialog.destroy)
                 
                 self.status_bar.config(text=message)
             else:
+                progress_dialog.destroy()
                 self.status_bar.config(text=message)
                 messagebox.showerror("错误", message)
         except Exception as e:
-            self.status_bar.config(text=f"处理图片时出错: {str(e)}")
-            messagebox.showerror("错误", f"处理图片时出错: {str(e)}")
+            progress_dialog.destroy()
+            self.status_bar.config(text="识别失败")
+            messagebox.showerror("错误", f"识别失败: {str(e)}")
     
     def update_sentence_display(self, words):
         """更新句子显示区域"""
@@ -1660,11 +1856,17 @@ class WordLearnerApp:
         self.sentence_text.config(state=tk.DISABLED)
 
     def draw_word_labels(self, words, positions, original_width, original_height):
-        """在图片Canvas上根据大模型返回的坐标绘制单词标签，并进行缩放和避让。"""
+        """在图片Canvas上根据大模型返回的坐标绘制单词标签，智能避让重叠。"""
         self.image_canvas.delete("word_label")
         
-        canvas_width = 400  # Canvas的目标宽度
-        canvas_height = 300 # Canvas的目标高度
+        # 获取实际Canvas尺寸
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        # 如果Canvas尺寸还未确定，使用默认值
+        if canvas_width <= 10 or canvas_height <= 10:
+            canvas_width = 450
+            canvas_height = 320
 
         if original_width == 0 or original_height == 0:
             print("警告: 原始图片尺寸为0，无法进行坐标缩放。")
@@ -1694,57 +1896,86 @@ class WordLearnerApp:
                 y_center_scaled = y_orig * scale_y
 
                 font_size = 10 
-                padding = 3 
-                text_width_estimate = len(word) * font_size * 0.65
-                text_height_estimate = font_size + 2 * padding
-
-                # 初始尝试位置
-                current_x_center = x_center_scaled
-                current_y_center = y_center_scaled
+                padding = 4
+                text_width_estimate = len(word) * font_size * 0.7
+                text_height_estimate = font_size + 4
                 
-                max_attempts = 10 # 最多尝试调整次数
-                attempt = 0
-                overlap = True
+                # 标签总尺寸（包含padding）
+                label_width = text_width_estimate + 2 * padding
+                label_height = text_height_estimate + 2 * padding
 
-                while overlap and attempt < max_attempts:
-                    overlap = False
-                    rect_x1 = current_x_center - text_width_estimate / 2 - padding
-                    rect_y1 = current_y_center - text_height_estimate / 2 - padding
-                    rect_x2 = current_x_center + text_width_estimate / 2 + padding
-                    rect_y2 = current_y_center + text_height_estimate / 2 + padding
-
-                    # 检查与已绘制矩形的重叠
+                # 智能避让策略：尝试多个位置
+                candidate_positions = [
+                    (x_center_scaled, y_center_scaled),  # 原始位置
+                    (x_center_scaled, y_center_scaled - label_height - 5),  # 上方
+                    (x_center_scaled, y_center_scaled + label_height + 5),  # 下方
+                    (x_center_scaled - label_width - 5, y_center_scaled),  # 左侧
+                    (x_center_scaled + label_width + 5, y_center_scaled),  # 右侧
+                    (x_center_scaled - label_width//2, y_center_scaled - label_height - 5),  # 左上
+                    (x_center_scaled + label_width//2, y_center_scaled - label_height - 5),  # 右上
+                    (x_center_scaled - label_width//2, y_center_scaled + label_height + 5),  # 左下
+                    (x_center_scaled + label_width//2, y_center_scaled + label_height + 5),  # 右下
+                ]
+                
+                best_position = None
+                min_overlap_area = float('inf')
+                
+                for candidate_x, candidate_y in candidate_positions:
+                    # 确保标签在Canvas范围内
+                    rect_x1 = max(0, candidate_x - label_width / 2)
+                    rect_y1 = max(0, candidate_y - label_height / 2)
+                    rect_x2 = min(canvas_width, candidate_x + label_width / 2)
+                    rect_y2 = min(canvas_height, candidate_y + label_height / 2)
+                    
+                    # 如果标签被裁剪得太多，跳过这个位置
+                    if rect_x2 - rect_x1 < label_width * 0.7 or rect_y2 - rect_y1 < label_height * 0.7:
+                        continue
+                    
+                    # 计算与已有标签的重叠面积
+                    total_overlap_area = 0
                     for dr_x1, dr_y1, dr_x2, dr_y2 in drawn_rects:
-                        # 基本的AABB重叠检测
-                        if not (rect_x2 < dr_x1 or rect_x1 > dr_x2 or rect_y2 < dr_y1 or rect_y1 > dr_y2):
-                            overlap = True
-                            break
+                        # 计算重叠区域
+                        overlap_x1 = max(rect_x1, dr_x1)
+                        overlap_y1 = max(rect_y1, dr_y1)
+                        overlap_x2 = min(rect_x2, dr_x2)
+                        overlap_y2 = min(rect_y2, dr_y2)
+                        
+                        if overlap_x1 < overlap_x2 and overlap_y1 < overlap_y2:
+                            overlap_area = (overlap_x2 - overlap_x1) * (overlap_y2 - overlap_y1)
+                            total_overlap_area += overlap_area
                     
-                    if overlap:
-                        # 尝试微调位置，例如向上移动一点
-                        # 可以实现更复杂的避让策略，如螺旋式搜索等
-                        current_y_center -= (text_height_estimate / 2) # 向上移动半个标签高度
-                        # 也可以尝试其他方向，或增加随机性
-                        # 确保调整后的位置仍在Canvas内 (可选)
-                        current_y_center = max(text_height_estimate / 2, min(current_y_center, canvas_height - text_height_estimate / 2))
-                        current_x_center = max(text_width_estimate / 2, min(current_x_center, canvas_width - text_width_estimate / 2))
+                    # 选择重叠面积最小的位置
+                    if total_overlap_area < min_overlap_area:
+                        min_overlap_area = total_overlap_area
+                        best_position = (candidate_x, candidate_y, rect_x1, rect_y1, rect_x2, rect_y2)
                     
-                    attempt += 1
+                    # 如果找到完全不重叠的位置，直接使用
+                    if total_overlap_area == 0:
+                        break
                 
-                # 如果多次尝试后仍然重叠，可以选择不绘制，或者接受重叠
-                # if overlap:
-                #     print(f"警告: 单词 '{word}' 无法找到不重叠的位置，可能仍会重叠或不显示。")
-                #     # continue # 如果选择不绘制重叠的标签
+                if best_position is None:
+                    # 如果没有找到合适位置，使用原始位置
+                    current_x_center = x_center_scaled
+                    current_y_center = y_center_scaled
+                    rect_x1 = current_x_center - label_width / 2
+                    rect_y1 = current_y_center - label_height / 2
+                    rect_x2 = current_x_center + label_width / 2
+                    rect_y2 = current_y_center + label_height / 2
+                else:
+                    current_x_center, current_y_center, rect_x1, rect_y1, rect_x2, rect_y2 = best_position
 
                 rect_tag = f"rect_{i}"
                 text_tag = f"text_{i}"
                 group_tag = f"word_group_{i}"
 
+                # 绘制标签背景
                 self.image_canvas.create_rectangle(rect_x1, rect_y1, rect_x2, rect_y2, 
                                                    fill="#FFFFE0", 
                                                    outline="#FFA500", 
+                                                   width=2,
                                                    tags=("word_label", rect_tag, group_tag))
                 
+                # 绘制文字
                 self.image_canvas.create_text(current_x_center, current_y_center, 
                                               text=word, 
                                               fill="#FF4500", 
@@ -1752,11 +1983,21 @@ class WordLearnerApp:
                                               anchor=tk.CENTER,
                                               tags=("word_label", text_tag, group_tag))
                 
-                # 记录这个成功绘制的标签的边界框
-                if not overlap: # 或者即使重叠也记录，取决于策略
-                    drawn_rects.append((rect_x1, rect_y1, rect_x2, rect_y2))
+                # 记录已绘制的标签边界框
+                drawn_rects.append((rect_x1, rect_y1, rect_x2, rect_y2))
                 
+                # 绑定点击事件
                 self.image_canvas.tag_bind(group_tag, "<Button-1>", lambda e, idx=i: self.on_word_label_click(idx))
+                
+                # 添加悬停效果
+                def on_label_enter(event, tag=group_tag):
+                    self.image_canvas.itemconfig(f"{tag}&&rect_{i}", fill="#FFFACD", outline="#FF8C00")
+                
+                def on_label_leave(event, tag=group_tag):
+                    self.image_canvas.itemconfig(f"{tag}&&rect_{i}", fill="#FFFFE0", outline="#FFA500")
+                
+                self.image_canvas.tag_bind(group_tag, "<Enter>", on_label_enter)
+                self.image_canvas.tag_bind(group_tag, "<Leave>", on_label_leave)
             else:
                 self.status_bar.config(text=f"警告: 单词'{word}'位置信息异常")
 

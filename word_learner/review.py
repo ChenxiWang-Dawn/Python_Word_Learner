@@ -85,13 +85,28 @@ class ReviewManager:
         # 在线查询按钮
         ttk.Button(self.button_frame, text="在线查询", command=self.query_online_current_word).pack(side=tk.LEFT, padx=5)
         
+        # 创建自定义按钮样式
+        self.create_memory_button_styles()
+        
         # 记忆状态按钮
         self.memory_frame = ttk.Frame(self.button_frame)
         self.memory_frame.pack(side=tk.RIGHT)
         
-        ttk.Button(self.memory_frame, text="记得", command=lambda: self.record_memory_status("recognized")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(self.memory_frame, text="模糊", command=lambda: self.record_memory_status("fuzzy")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(self.memory_frame, text="忘记", command=lambda: self.record_memory_status("forgotten")).pack(side=tk.LEFT, padx=5)
+        # 使用自定义样式的按钮
+        remember_btn = ttk.Button(self.memory_frame, text="记得", 
+                                 command=lambda: self.record_memory_status("recognized"),
+                                 style="Remember.TButton")
+        remember_btn.pack(side=tk.LEFT, padx=5)
+        
+        fuzzy_btn = ttk.Button(self.memory_frame, text="模糊", 
+                              command=lambda: self.record_memory_status("fuzzy"),
+                              style="Fuzzy.TButton")
+        fuzzy_btn.pack(side=tk.LEFT, padx=5)
+        
+        forget_btn = ttk.Button(self.memory_frame, text="忘记", 
+                               command=lambda: self.record_memory_status("forgotten"),
+                               style="Forget.TButton")
+        forget_btn.pack(side=tk.LEFT, padx=5)
         
         # 导航按钮
         self.nav_frame = ttk.Frame(self.review_frame)
@@ -107,6 +122,58 @@ class ReviewManager:
         self.reset_review_ui()
         
         return page
+    
+    def create_memory_button_styles(self):
+        """创建记忆状态按钮的自定义样式"""
+        style = ttk.Style()
+        
+        # 记得按钮 - 绿色
+        style.configure("Remember.TButton",
+                       padding=(15, 8),
+                       font=("SF Pro Display", 11, "bold"),
+                       background="#28a745",  # 绿色
+                       foreground="white",
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
+        
+        style.map("Remember.TButton",
+                 background=[('active', '#218838'),  # 深绿色悬停
+                           ('pressed', '#1e7e34')],   # 更深绿色点击
+                 foreground=[('active', 'white'),
+                           ('pressed', 'white')])
+        
+        # 模糊按钮 - 灰色
+        style.configure("Fuzzy.TButton",
+                       padding=(15, 8),
+                       font=("SF Pro Display", 11, "bold"),
+                       background="#6c757d",  # 灰色
+                       foreground="white",
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
+        
+        style.map("Fuzzy.TButton",
+                 background=[('active', '#5a6268'),  # 深灰色悬停
+                           ('pressed', '#495057')],   # 更深灰色点击
+                 foreground=[('active', 'white'),
+                           ('pressed', 'white')])
+        
+        # 忘记按钮 - 红色
+        style.configure("Forget.TButton",
+                       padding=(15, 8),
+                       font=("SF Pro Display", 11, "bold"),
+                       background="#dc3545",  # 红色
+                       foreground="white",
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
+        
+        style.map("Forget.TButton",
+                 background=[('active', '#c82333'),  # 深红色悬停
+                           ('pressed', '#bd2130')],   # 更深红色点击
+                 foreground=[('active', 'white'),
+                           ('pressed', 'white')])
     
     def start_review(self):
         """开始复习"""

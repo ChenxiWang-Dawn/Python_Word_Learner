@@ -21,7 +21,28 @@ class WordsManager:
     
     def create_words_page(self, parent):
         """创建单词页面"""
-        page = ttk.Frame(parent)
+        # 创建主容器，限制高度以避免推出导航栏
+        main_container = ttk.Frame(parent)
+        
+        # 创建滚动画布来处理内容溢出
+        canvas = tk.Canvas(main_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # 布局滚动组件
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 现在在scrollable_frame中创建内容
+        page = scrollable_frame
         
         # 顶部控制区域
         control_frame = ttk.Frame(page)
@@ -40,62 +61,73 @@ class WordsManager:
         
         ttk.Button(control_frame, text="加载单词", command=self.load_words).pack(side=tk.LEFT, padx=20)
         
-        # 单词浏览区域
+        # 单词浏览区域 - 限制高度
         self.browse_frame = ttk.LabelFrame(page, text="单词浏览")
-        self.browse_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.browse_frame.pack(fill=tk.BOTH, expand=False, padx=10, pady=10)
+        
+        # 设置browse_frame的最大高度，确保不会超出可视区域
+        browse_height = 500  # 限制浏览区域的最大高度
         
         # 创建左右分栏
-        left_frame = ttk.Frame(self.browse_frame, width=200)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        content_frame = ttk.Frame(self.browse_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        right_frame = ttk.Frame(self.browse_frame)
+        left_frame = ttk.Frame(content_frame, width=200)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        left_frame.pack_propagate(False)  # 防止内容改变frame大小
+        
+        right_frame = ttk.Frame(content_frame)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
         # 左侧单词列表
         ttk.Label(left_frame, text="单词列表:").pack(anchor=tk.W, pady=(0, 5))
         
-        # 创建带滚动条的列表框
+        # 创建带滚动条的列表框 - 限制高度
         list_frame = ttk.Frame(left_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.word_listbox = tk.Listbox(list_frame)
+        # 限制列表框高度
+        self.word_listbox = tk.Listbox(list_frame, height=20)  # 限制高度为20行
         self.word_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.word_listbox.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.word_listbox.config(yscrollcommand=scrollbar.set)
+        list_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.word_listbox.yview)
+        list_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.word_listbox.config(yscrollcommand=list_scrollbar.set)
         
         # 绑定选择事件
         self.word_listbox.bind('<<ListboxSelect>>', self.on_word_select)
         
-        # 右侧单词详情
-        self.detail_frame = ttk.Frame(right_frame)
+        # 右侧单词详情 - 使用固定高度容器
+        detail_container = ttk.Frame(right_frame)
+        detail_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.detail_frame = ttk.Frame(detail_container)
         self.detail_frame.pack(fill=tk.BOTH, expand=True)
         
         # 单词标签
         self.word_label = ttk.Label(self.detail_frame, text="", font=("Arial", 20, "bold"))
         self.word_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
         
-        # 图片区域
+        # 图片区域 - 限制大小
         self.image_frame = ttk.Frame(self.detail_frame)
-        self.image_frame.pack(fill=tk.X, padx=10, pady=10)
+        self.image_frame.pack(fill=tk.X, padx=10, pady=5)
         
         self.image_label = ttk.Label(self.image_frame)
         self.image_label.pack()
         
-        # 释义区域
+        # 释义区域 - 限制高度
         ttk.Label(self.detail_frame, text="释义:", font=("Arial", 12, "bold")).pack(anchor=tk.W, padx=10, pady=(10, 0))
-        self.translation_text = tk.Text(self.detail_frame, height=4, wrap=tk.WORD)
-        self.translation_text.pack(fill=tk.X, expand=False, padx=10, pady=5)
+        self.translation_text = tk.Text(self.detail_frame, height=3, wrap=tk.WORD)  # 减少高度
+        self.translation_text.pack(fill=tk.X, expand=False, padx=10, pady=2)
         
-        # 例句区域
-        ttk.Label(self.detail_frame, text="例句:", font=("Arial", 12, "bold")).pack(anchor=tk.W, padx=10, pady=(10, 0))
-        self.example_text = tk.Text(self.detail_frame, height=6, wrap=tk.WORD)
-        self.example_text.pack(fill=tk.X, expand=False, padx=10, pady=5)
+        # 例句区域 - 限制高度  
+        ttk.Label(self.detail_frame, text="例句:", font=("Arial", 12, "bold")).pack(anchor=tk.W, padx=10, pady=(5, 0))
+        self.example_text = tk.Text(self.detail_frame, height=4, wrap=tk.WORD)  # 减少高度
+        self.example_text.pack(fill=tk.X, expand=False, padx=10, pady=2)
         
         # 按钮区域
         button_frame = ttk.Frame(self.detail_frame)
-        button_frame.pack(fill=tk.X, padx=10, pady=10)
+        button_frame.pack(fill=tk.X, padx=10, pady=5)
         
         ttk.Button(button_frame, text="发音", command=self.pronounce_current_word).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="在线查询", command=self.query_online_current_word).pack(side=tk.LEFT, padx=5)
@@ -103,7 +135,7 @@ class WordsManager:
         
         # 导航区域
         nav_frame = ttk.Frame(self.detail_frame)
-        nav_frame.pack(fill=tk.X, padx=10, pady=10)
+        nav_frame.pack(fill=tk.X, padx=10, pady=5)
         
         ttk.Button(nav_frame, text="上一个", command=self.prev_word).pack(side=tk.LEFT, padx=5)
         ttk.Button(nav_frame, text="下一个", command=self.next_word).pack(side=tk.LEFT, padx=5)
@@ -111,7 +143,16 @@ class WordsManager:
         self.progress_label = ttk.Label(nav_frame, text="0/0")
         self.progress_label.pack(side=tk.RIGHT, padx=5)
         
-        return page
+        # 绑定鼠标滚轮事件到canvas
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        # Windows和MacOS的滚轮事件不同
+        canvas.bind("<MouseWheel>", _on_mousewheel)  # Windows
+        canvas.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))  # Linux/MacOS
+        canvas.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))   # Linux/MacOS
+        
+        return main_container
     
     def load_words(self):
         """加载单词"""
