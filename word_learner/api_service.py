@@ -57,9 +57,14 @@ class APIService:
 
 2. 总结这句话中用到的符合{english_class}范围的单词
 
-3. 输出这些单词在图片中的坐标位置，使用[x, y]格式，其中x和y是基于图片分辨率的绝对坐标。本张图片的分辨率是{image_resolution}，输出坐标时请保证坐标位置在图片内。
-对于无法明确指向的单词，统一出坐标在图片的正中央。
-如果出现多个单词输出坐标一致时，需要向下进行排列，避免输出完全一样的坐标位置。
+3. 输出这些单词在图片中的坐标位置，使用[x, y]格式，其中x和y是基于图片分辨率的绝对坐标。本张图片的分辨率是{image_resolution}。
+
+注意坐标要求：
+- 坐标必须在图片范围内：x坐标在0到{img.width}之间，y坐标在0到{img.height}之间
+- 尽量将坐标指向图片中与单词含义相关的物体或区域的中心位置
+- 如果单词在图片中有明确对应的物体，将坐标指向该物体
+- 如果单词是抽象概念或无法明确指向，将坐标设置在图片中心区域，但要错开不同单词的位置
+- 多个单词的坐标不要完全重叠，可以在附近区域分散排列
 
 请以JSON数组格式返回，格式为：[{{"word": "单词", "position": [x, y]}}, {{"sentence":"Today is a sunny day!"}}]。只返回JSON数组，不要返回其他内容。"""
             
@@ -181,7 +186,7 @@ class APIService:
                 data.setdefault("translation", "无法获取释义")
                 data.setdefault("phonetic", "")
                 data.setdefault("example", "无法获取例句")
-                
+
                 return True, "查询成功", data, ""
             except json.JSONDecodeError:
                 print(f"Qwen Turbo response content: {content}")

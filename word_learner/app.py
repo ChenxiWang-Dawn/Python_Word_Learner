@@ -20,13 +20,26 @@ from api_service import APIService
 class WordLearnerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("拍照学单词")
-        self.root.geometry("1000x800")  # 增加默认高度
-        self.root.minsize(800, 700)     # 增加最小高度
+        self.root.title("📚 拍照学单词 - Photo Word Learning")
+        self.root.geometry("1200x900")  # 增加窗口大小
+        self.root.minsize(1000, 800)    # 增加最小尺寸
+        
+        # 设置窗口图标和属性
+        try:
+            # 如果有图标文件的话
+            if os.path.exists("word_learner/images/icon.ico"):
+                self.root.iconbitmap("word_learner/images/icon.ico")
+        except:
+            pass
+            
+        # 设置窗口居中
+        self.center_window()
         
         # 配置
-        self.api_key = "sk-5ddc81d9a00048f898f0c80f405fdf24"  # 需要设置OpenAI API密钥
-        self.db_path = "words.db"
+        self.api_key = ""  # 需要设置OpenAI API密钥
+        # 确保数据库路径指向word_learner目录
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.db_path = os.path.join(script_dir, "words.db")
         self.current_image_path = None
         self.recognized_words = []
         self.current_word_index = 0
@@ -38,14 +51,26 @@ class WordLearnerApp:
         # 初始化数据库
         self.init_database()
         
+        # 设置样式（在创建UI之前）
+        self.set_styles()
+        
         # 创建UI
         self.create_ui()
         
         # 确保窗口大小合适
         self.root.update()
-        min_height = self.navbar.winfo_reqheight() + self.status_bar.winfo_reqheight() + 600  # 增加内容区域的最小高度
+        min_height = self.navbar.winfo_reqheight() + self.status_bar.winfo_reqheight() + 700
         if self.root.winfo_height() < min_height:
             self.root.geometry(f"{self.root.winfo_width()}x{min_height}")
+    
+    def center_window(self):
+        """将窗口居中显示"""
+        self.root.update_idletasks()
+        width = 1200
+        height = 900
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry(f'{width}x{height}+{x}+{y}')
     
     def init_services(self):
         """初始化各种服务和管理器"""
@@ -109,14 +134,17 @@ class WordLearnerApp:
         conn.close()
     
     def create_ui(self):
-        """创建用户界面"""
-        # 创建主框架
+        """创建现代化用户界面"""
+        # 创建主框架 - 使用现代化的内边距
         self.main_frame = ttk.Frame(self.root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 添加标题栏
+        self.create_header()
         
         # 创建内容区域
         self.content_frame = ttk.Frame(self.main_frame)
-        self.content_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=(20, 0))
         
         # 创建底部导航栏
         self.create_bottom_navbar()
@@ -144,9 +172,37 @@ class WordLearnerApp:
 
         # 默认显示相机页面
         self.show_page("camera")
+    
+    def create_header(self):
+        """创建应用标题栏"""
+        header_frame = ttk.Frame(self.main_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 20))
         
-        # 设置样式
-        self.set_styles()
+        # 应用标题
+        title_label = ttk.Label(header_frame, 
+                               text="📚 拍照学单词", 
+                               font=("SF Pro Display", 24, "bold"),
+                               foreground="#1f2937")
+        title_label.pack(side=tk.LEFT)
+        
+        # 副标题
+        subtitle_label = ttk.Label(header_frame, 
+                                  text="通过拍照识别英文单词，智能学习助手", 
+                                  font=("SF Pro Display", 12),
+                                  foreground="#6b7280")
+        subtitle_label.pack(side=tk.LEFT, padx=(20, 0))
+        
+        # 右侧快捷操作
+        actions_frame = ttk.Frame(header_frame)
+        actions_frame.pack(side=tk.RIGHT)
+        
+        # 添加一些快捷按钮
+        help_btn = ttk.Button(actions_frame, text="❓ 帮助", style="Secondary.TButton")
+        help_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        
+        settings_btn = ttk.Button(actions_frame, text="⚙️ 设置", style="Secondary.TButton",
+                                 command=lambda: self.show_page("settings"))
+        settings_btn.pack(side=tk.RIGHT)
     
     def show_page(self, page_name):
         """显示指定页面"""
@@ -157,8 +213,20 @@ class WordLearnerApp:
         # 显示选定页面
         self.pages[page_name].pack(fill=tk.BOTH, expand=True)
         
+        # 更新导航栏活动状态
+        if hasattr(self, 'nav_buttons'):
+            self.update_nav_active_state(page_name)
+        
         # 更新状态栏
-        self.status_bar.config(text=f"当前页面: {page_name}")
+        page_titles = {
+            "camera": "📷 拍照识别",
+            "wordbook": "📚 生词本",
+            "album": "🖼️ 相册",
+            "words": "📝 单词练习",
+            "review": "🎯 复习模式",
+            "settings": "⚙️ 设置"
+        }
+        self.status_bar.config(text=f"当前页面: {page_titles.get(page_name, page_name)}")
         
         # 更新当前页面名称
         self.current_page = page_name
@@ -1064,10 +1132,6 @@ class WordLearnerApp:
                 messagebox.showinfo("成功", f"单词 '{word}' 已添加到生词本")
             
             conn.commit()
-            
-            if self.current_image_path:
-                self.album_manager.add_image_to_album(self.current_image_path, has_words=True)
-                
         except Exception as e:
             messagebox.showerror("错误", f"添加单词失败: {str(e)}")
         finally:
@@ -1091,31 +1155,159 @@ class WordLearnerApp:
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=self.navbar)
     
     def set_styles(self):
-        """设置界面样式"""
+        """设置现代化界面样式"""
         style = ttk.Style()
         
         # 设置主题
         if 'clam' in style.theme_names():
             style.theme_use('clam')
         
-        # 自定义样式
-        style.configure("TButton", padding=6)
-        style.configure("TLabel", padding=3)
-        style.configure("TFrame", background="#f0f0f0")
-        style.configure("TLabelframe", background="#f0f0f0")
-        style.configure("TLabelframe.Label", font=("Arial", 10, "bold"))
+        # 定义现代化配色方案
+        colors = {
+            'primary': '#2563eb',      # 现代蓝
+            'primary_dark': '#1d4ed8', # 深蓝
+            'secondary': '#10b981',    # 翠绿
+            'accent': '#f59e0b',       # 橙色
+            'background': '#f8fafc',   # 浅灰白
+            'surface': '#ffffff',      # 纯白
+            'text_primary': '#1f2937', # 深灰
+            'text_secondary': '#6b7280', # 中灰
+            'border': '#e5e7eb',       # 浅灰边框
+            'success': '#059669',      # 成功绿
+            'warning': '#d97706',      # 警告橙
+            'error': '#dc2626'         # 错误红
+        }
         
-        # 提示按钮样式
-        style.configure("Hint.TButton",
+        # 配置全局样式
+        style.configure("TFrame", 
+                       background=colors['background'],
+                       relief='flat')
+        
+        style.configure("TLabel", 
+                       background=colors['background'],
+                       foreground=colors['text_primary'],
+                       font=("SF Pro Display", 11))
+        
+        style.configure("TLabelframe", 
+                       background=colors['background'],
+                       relief='flat',
+                       borderwidth=1)
+        
+        style.configure("TLabelframe.Label", 
+                       background=colors['background'],
+                       foreground=colors['text_primary'],
+                       font=("SF Pro Display", 12, "bold"))
+        
+        # 现代化按钮样式
+        style.configure("TButton",
+                       padding=(20, 12),
+                       font=("SF Pro Display", 11, "bold"),
+                       background=colors['primary'],
+                       foreground='white',
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
+        
+        style.map("TButton",
+                 background=[('active', colors['primary_dark']),
+                           ('pressed', colors['primary_dark']),
+                           ('disabled', colors['border'])],
+                 foreground=[('disabled', colors['text_secondary'])])
+        
+        # 导航按钮样式
+        style.configure("Nav.TButton",
+                       padding=(15, 10),
+                       font=("SF Pro Display", 10, "bold"),
+                       background=colors['surface'],
+                       foreground=colors['text_primary'],
+                       borderwidth=1,
+                       relief='solid',
+                       focuscolor='none')
+        
+        style.map("Nav.TButton",
+                 background=[('active', colors['primary']),
+                           ('pressed', colors['primary_dark'])],
+                 foreground=[('active', 'white'),
+                           ('pressed', 'white')],
+                 bordercolor=[('active', colors['primary']),
+                            ('pressed', colors['primary_dark']),
+                            ('!active', colors['border'])])
+        
+        # 成功按钮样式
+        style.configure("Success.TButton",
                        padding=(15, 8),
-                       font=("Arial", 11),
-                       background="#3498db",
-                       foreground="white")
+                       font=("SF Pro Display", 11, "bold"),
+                       background=colors['success'],
+                       foreground='white',
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
         
-        # 鼠标悬停效果
-        style.map("Hint.TButton",
-                 background=[("active", "#2980b9")],
-                 foreground=[("active", "white")])
+        style.map("Success.TButton",
+                 background=[('active', '#047857'),
+                           ('pressed', '#065f46')])
+        
+        # 警告按钮样式
+        style.configure("Warning.TButton",
+                       padding=(15, 8),
+                       font=("SF Pro Display", 11, "bold"),
+                       background=colors['warning'],
+                       foreground='white',
+                       borderwidth=0,
+                       relief='flat',
+                       focuscolor='none')
+        
+        style.map("Warning.TButton",
+                 background=[('active', '#b45309'),
+                           ('pressed', '#92400e')])
+        
+        # 次要按钮样式
+        style.configure("Secondary.TButton",
+                       padding=(15, 8),
+                       font=("SF Pro Display", 11),
+                       background=colors['surface'],
+                       foreground=colors['text_primary'],
+                       borderwidth=1,
+                       relief='solid',
+                       focuscolor='none')
+        
+        style.map("Secondary.TButton",
+                 background=[('active', colors['background']),
+                           ('pressed', colors['border'])],
+                 bordercolor=[('active', colors['primary']),
+                            ('!active', colors['border'])])
+        
+        # 文本框样式
+        style.configure("TEntry",
+                       padding=10,
+                       font=("SF Pro Display", 11),
+                       borderwidth=1,
+                       relief='solid',
+                       focuscolor=colors['primary'])
+        
+        # 列表框样式
+        style.configure("TTreeview",
+                       background=colors['surface'],
+                       foreground=colors['text_primary'],
+                       font=("SF Pro Display", 11),
+                       borderwidth=1,
+                       relief='solid')
+        
+        style.configure("TTreeview.Heading",
+                       background=colors['background'],
+                       foreground=colors['text_primary'],
+                       font=("SF Pro Display", 11, "bold"),
+                       relief='flat')
+        
+        # 进度条样式
+        style.configure("TProgressbar",
+                       background=colors['primary'],
+                       troughcolor=colors['border'],
+                       borderwidth=0,
+                       relief='flat')
+        
+        # 设置根窗口背景
+        self.root.configure(bg=colors['background'])
 
     def highlight_words(self, text, words):
         """高亮显示文本中的单词"""
