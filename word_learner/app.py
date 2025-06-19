@@ -1064,6 +1064,10 @@ class WordLearnerApp:
                 messagebox.showinfo("成功", f"单词 '{word}' 已添加到生词本")
             
             conn.commit()
+            
+            if self.current_image_path:
+                self.album_manager.add_image_to_album(self.current_image_path, has_words=True)
+                
         except Exception as e:
             messagebox.showerror("错误", f"添加单词失败: {str(e)}")
         finally:
