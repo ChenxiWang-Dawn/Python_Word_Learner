@@ -196,7 +196,7 @@ class ReviewManager:
     
     def show_translation(self):
         """显示释义"""
-        self.translation_frame.pack(fill=tk.BOTH, expand=True, before=self.button_frame)
+        self.translation_frame.pack(fill=tk.X, expand=False, pady=10)
         self.show_translation_btn.config(state=tk.DISABLED)
     
     def next_word(self):

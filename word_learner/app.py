@@ -25,7 +25,7 @@ class WordLearnerApp:
         self.root.minsize(800, 700)     # 增加最小高度
         
         # 配置
-        self.api_key = ""  # 需要设置OpenAI API密钥
+        self.api_key = "sk-5ddc81d9a00048f898f0c80f405fdf24"  # 需要设置OpenAI API密钥
         self.db_path = "words.db"
         self.current_image_path = None
         self.recognized_words = []
