@@ -174,18 +174,26 @@ class AlbumManager:
         # 创建详情对话框
         detail_window = tk.Toplevel(self.root)
         detail_window.title("图片详情")
-        detail_window.geometry("800x600")
         detail_window.transient(self.root)
         detail_window.grab_set()
-
+        
+        # 获取屏幕尺寸
+        screen_width = detail_window.winfo_screenwidth()
+        screen_height = detail_window.winfo_screenheight()
+        
+        # 先设置一个初始大小
+        initial_width = min(1000, int(screen_width * 0.8))
+        initial_height = min(700, int(screen_height * 0.8))
+        detail_window.geometry(f"{initial_width}x{initial_height}")
+        
         # 顶部工具栏
         toolbar = ttk.Frame(detail_window)
         toolbar.pack(fill=tk.X, padx=10, pady=10)
-
+        
         # 返回按钮
         back_btn = ttk.Button(toolbar, text="← 返回", command=detail_window.destroy)
         back_btn.pack(side=tk.LEFT, padx=5)
-
+        
         # 删除按钮
         delete_btn = ttk.Button(
             toolbar,
@@ -193,32 +201,65 @@ class AlbumManager:
             command=lambda: self.delete_image(image_path, detail_window)
         )
         delete_btn.pack(side=tk.RIGHT, padx=5)
-
-        # 图片区域
-        img_frame = ttk.Frame(detail_window)
-        img_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
+        
+        # 创建主滚动区域
+        main_canvas = tk.Canvas(detail_window)
+        main_scrollbar = ttk.Scrollbar(detail_window, orient="vertical", command=main_canvas.yview)
+        scrollable_main_frame = ttk.Frame(main_canvas)
+        
+        scrollable_main_frame.bind(
+            "<Configure>",
+            lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+        )
+        
+        main_canvas.create_window((0, 0), window=scrollable_main_frame, anchor="nw")
+        main_canvas.configure(yscrollcommand=main_scrollbar.set)
+        
+        # 添加鼠标滚轮支持
+        def _on_mousewheel(event):
+            main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _bind_to_mousewheel(event):
+            main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_from_mousewheel(event):
+            main_canvas.unbind_all("<MouseWheel>")
+        
+        main_canvas.bind('<Enter>', _bind_to_mousewheel)
+        main_canvas.bind('<Leave>', _unbind_from_mousewheel)
+        
         try:
+            # 图片区域
+            img_frame = ttk.Frame(scrollable_main_frame)
+            img_frame.pack(fill=tk.X, padx=10, pady=10)
+            
             # 加载图片
             img = Image.open(image_path)
-            img = self.resize_image(img, 700, 400)
+            # 根据窗口大小动态调整图片大小
+            max_img_width = initial_width - 100
+            max_img_height = int(initial_height * 0.4)  # 图片占窗口高度的40%
+            img = self.resize_image(img, max_img_width, max_img_height)
             photo = ImageTk.PhotoImage(img)
-
+            
             # 保存引用
             self.current_image = photo
-
+            
             # 显示图片
             img_label = ttk.Label(img_frame, image=photo)
             img_label.pack(pady=10)
-
+            
             # 获取图片信息
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
+            
             # 获取添加日期
             cursor.execute("SELECT added_date FROM album WHERE image_path = ?", (image_path,))
-            added_date = cursor.fetchone()[0]
-
+            result = cursor.fetchone()
+            if result:
+                added_date = result[0]
+            else:
+                added_date = "未知"
+            
             # 获取关联的单词
             cursor.execute("""
                 SELECT word, translation FROM words 
@@ -226,45 +267,91 @@ class AlbumManager:
                 ORDER BY word
             """, (image_path,))
             words = cursor.fetchall()
-
+            
             conn.close()
-
+            
             # 显示图片信息
-            info_frame = ttk.Frame(detail_window)
+            info_frame = ttk.Frame(scrollable_main_frame)
             info_frame.pack(fill=tk.X, padx=20, pady=10)
-
-            date_obj = datetime.datetime.strptime(added_date, "%Y-%m-%d %H:%M:%S")
-            date_str = date_obj.strftime("%Y年%m月%d日 %H:%M")
+            
+            if added_date != "未知":
+                date_obj = datetime.datetime.strptime(added_date, "%Y-%m-%d %H:%M:%S")
+                date_str = date_obj.strftime("%Y年%m月%d日 %H:%M")
+            else:
+                date_str = "未知"
+            
             ttk.Label(info_frame, text=f"添加时间: {date_str}", font=("Arial", 10)).pack(anchor=tk.W)
             ttk.Label(info_frame, text=f"关联单词数: {len(words)}", font=("Arial", 10)).pack(anchor=tk.W)
-
+            
             # 显示关联的单词
             if words:
-                words_frame = ttk.LabelFrame(detail_window, text="关联的单词")
+                words_frame = ttk.LabelFrame(scrollable_main_frame, text="关联的单词")
                 words_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
-
+                
                 # 创建单词列表
                 columns = ("word", "translation")
                 word_tree = ttk.Treeview(words_frame, columns=columns, show="headings")
-
+                
                 word_tree.heading("word", text="单词")
                 word_tree.heading("translation", text="释义")
-
+                
                 word_tree.column("word", width=150)
                 word_tree.column("translation", width=450)
-
+                
                 for word, translation in words:
                     word_tree.insert("", tk.END, values=(word, translation))
-
+                
                 word_tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
+                
                 # 添加滚动条
-                scrollbar = ttk.Scrollbar(words_frame, orient=tk.VERTICAL, command=word_tree.yview)
-                scrollbar.place(relx=1, rely=0, relheight=1, anchor=tk.NE)
-                word_tree.configure(yscrollcommand=scrollbar.set)
-
+                word_scrollbar = ttk.Scrollbar(words_frame, orient=tk.VERTICAL, command=word_tree.yview)
+                word_scrollbar.place(relx=1, rely=0, relheight=1, anchor=tk.NE)
+                word_tree.configure(yscrollcommand=word_scrollbar.set)
+                
+                # 根据单词数量动态调整窗口高度
+                word_count = len(words)
+                if word_count > 10:  # 如果单词较多，增加窗口高度
+                    new_height = min(int(screen_height * 0.9), initial_height + (word_count - 10) * 25)
+                    detail_window.geometry(f"{initial_width}x{new_height}")
+            
+            # 布局主滚动区域
+            main_canvas.pack(side="left", fill="both", expand=True)
+            main_scrollbar.pack(side="right", fill="y")
+            
+            # 更新窗口以计算实际需要的大小
+            detail_window.update_idletasks()
+            
+            # 获取内容的实际大小
+            required_width = scrollable_main_frame.winfo_reqwidth() + 50
+            required_height = scrollable_main_frame.winfo_reqheight() + 100  # 加上工具栏高度
+            
+            # 限制最大尺寸不超过屏幕的90%
+            max_width = int(screen_width * 0.9)
+            max_height = int(screen_height * 0.9)
+            
+            final_width = min(max(required_width, 800), max_width)  # 最小800，最大屏幕90%
+            final_height = min(max(required_height, 600), max_height)  # 最小600，最大屏幕90%
+            
+            # 设置最终窗口大小并居中
+            x = (screen_width - final_width) // 2
+            y = (screen_height - final_height) // 2
+            detail_window.geometry(f"{final_width}x{final_height}+{x}+{y}")
+            
+            # 设置最小尺寸
+            detail_window.minsize(600, 400)
+            
+            # 允许窗口调整大小
+            detail_window.resizable(True, True)
+            
         except Exception as e:
-            ttk.Label(img_frame, text=f"无法加载图片: {str(e)}", font=("Arial", 12)).pack(pady=50)
+            # 如果出错，显示错误信息
+            error_frame = ttk.Frame(scrollable_main_frame)
+            error_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            ttk.Label(error_frame, text=f"无法加载图片: {str(e)}", font=("Arial", 12)).pack(pady=50)
+            
+            # 布局主滚动区域
+            main_canvas.pack(side="left", fill="both", expand=True)
+            main_scrollbar.pack(side="right", fill="y")
 
     def delete_image(self, image_path, detail_window=None):
         """从相册中删除图片"""

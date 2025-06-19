@@ -15,10 +15,16 @@ class ReviewManager:
         self.api_key = api_key
         self.status_bar = status_bar
         
+        # 保存原始窗口大小
+        self.original_window_size = None
+        
         self.review_words = []
         self.current_word_index = 0
         self.current_word = None
         self.review_in_progress = False
+        
+        # 添加记忆状态跟踪
+        self.word_memory_status = {}  # 记录每个单词的记忆状态
     
     def create_review_page(self, parent):
         """创建复习页面"""
@@ -215,6 +221,9 @@ class ReviewManager:
         self.current_word_index = 0
         self.review_in_progress = True
         
+        # 重置记忆状态跟踪
+        self.word_memory_status.clear()
+        
         # 显示第一个单词
         self.show_current_word()
         
@@ -225,6 +234,17 @@ class ReviewManager:
         """显示当前复习单词"""
         if not self.review_words or self.current_word_index >= len(self.review_words):
             return
+        
+        # 保存当前窗口大小（如果还没保存的话）
+        if self.original_window_size is None:
+            self.original_window_size = (self.root.winfo_width(), self.root.winfo_height())
+        
+        # 恢复原始窗口大小
+        if self.original_window_size:
+            width, height = self.original_window_size
+            x = self.root.winfo_x()
+            y = self.root.winfo_y()
+            self.root.geometry(f"{width}x{height}+{x}+{y}")
         
         # 获取当前单词数据
         word_data = self.review_words[self.current_word_index]
@@ -262,9 +282,46 @@ class ReviewManager:
         self.progress_label.config(text=f"{self.current_word_index + 1}/{len(self.review_words)}")
     
     def show_translation(self):
-        """显示释义"""
+        """显示释义并自动调整窗口大小"""
+        # 显示释义区域
         self.translation_frame.pack(fill=tk.X, expand=False, pady=10)
         self.show_translation_btn.config(state=tk.DISABLED)
+        
+        # 更新界面以获取准确的尺寸
+        self.root.update_idletasks()
+        
+        # 计算需要的额外高度
+        translation_height = self.translation_text.winfo_reqheight()
+        example_height = self.example_text.winfo_reqheight()
+        labels_height = 60  # 两个标签的大概高度
+        padding_height = 40  # 额外的padding
+        
+        extra_height = translation_height + example_height + labels_height + padding_height
+        
+        # 获取当前窗口尺寸
+        current_width = self.root.winfo_width()
+        current_height = self.root.winfo_height()
+        
+        # 计算新的窗口高度（确保不超过屏幕高度的90%）
+        screen_height = self.root.winfo_screenheight()
+        max_height = int(screen_height * 0.9)
+        new_height = min(current_height + extra_height, max_height)
+        
+        # 如果需要调整窗口大小
+        if new_height > current_height:
+            # 获取当前窗口位置
+            x = self.root.winfo_x()
+            y = self.root.winfo_y()
+            
+            # 调整y坐标以保持窗口居中
+            height_diff = new_height - current_height
+            new_y = max(0, y - height_diff // 2)
+            
+            # 设置新的窗口大小和位置
+            self.root.geometry(f"{current_width}x{new_height}+{x}+{new_y}")
+            
+            # 更新状态栏提示
+            self.status_bar.config(text=f"窗口已自动调整大小以显示完整内容")
     
     def next_word(self):
         """下一个单词"""
@@ -275,7 +332,61 @@ class ReviewManager:
             self.current_word_index += 1
             self.show_current_word()
         else:
+            # 复习结束，根据记忆状态给出不同提示
+            self.check_review_completion()
+    
+    def check_review_completion(self):
+        """检查复习完成情况并给出相应提示"""
+        if not self.word_memory_status:
             messagebox.showinfo("提示", "已经是最后一个单词")
+            return
+        
+        # 统计各种记忆状态
+        recognized_count = sum(1 for status in self.word_memory_status.values() if status == "recognized")
+        fuzzy_count = sum(1 for status in self.word_memory_status.values() if status == "fuzzy")
+        forgotten_count = sum(1 for status in self.word_memory_status.values() if status == "forgotten")
+        total_reviewed = len(self.word_memory_status)
+        
+        # 根据记忆状态给出不同提示
+        if fuzzy_count == 0 and forgotten_count == 0:
+            # 全部记得
+            messagebox.showinfo("恭喜！", f"真棒，已全部复习！\n\n📊 复习统计：\n✅ 记得清楚：{recognized_count}个\n📝 总计：{total_reviewed}个单词")
+            self.status_bar.config(text=f"复习完成！全部{total_reviewed}个单词都记得很清楚！")
+        else:
+            # 有模糊或忘记的单词
+            result = messagebox.askyesno(
+                "复习完成", 
+                f"再来一遍？\n\n📊 本轮复习统计：\n✅ 记得清楚：{recognized_count}个\n🤔 记忆模糊：{fuzzy_count}个\n❌ 已忘记：{forgotten_count}个\n📝 总计：{total_reviewed}个单词\n\n是否重新复习模糊和忘记的单词？"
+            )
+            
+            if result:
+                # 重新复习模糊和忘记的单词
+                self.restart_difficult_words()
+            else:
+                self.status_bar.config(text=f"复习完成！记得{recognized_count}个，模糊{fuzzy_count}个，忘记{forgotten_count}个")
+    
+    def restart_difficult_words(self):
+        """重新复习模糊和忘记的单词"""
+        # 筛选出需要重新复习的单词
+        difficult_words = []
+        for word_data in self.review_words:
+            word_id = word_data[0]
+            if word_id in self.word_memory_status:
+                status = self.word_memory_status[word_id]
+                if status in ["fuzzy", "forgotten"]:
+                    difficult_words.append(word_data)
+        
+        if difficult_words:
+            # 重置复习状态
+            self.review_words = difficult_words
+            self.current_word_index = 0
+            self.word_memory_status.clear()  # 清空之前的记录
+            
+            # 开始新一轮复习
+            self.show_current_word()
+            self.status_bar.config(text=f"开始重新复习 {len(difficult_words)} 个需要加强的单词")
+        else:
+            messagebox.showinfo("提示", "没有需要重新复习的单词")
     
     def prev_word(self):
         """上一个单词"""
@@ -294,6 +405,9 @@ class ReviewManager:
             return
         
         word_id = self.current_word[0]
+        
+        # 记录当前单词的记忆状态
+        self.word_memory_status[word_id] = status
         
         # 记录到数据库
         conn = sqlite3.connect(self.db_path)

@@ -36,7 +36,7 @@ class WordLearnerApp:
         self.center_window()
         
         # 配置
-        self.api_key = ""  # 需要设置OpenAI API密钥
+        self.api_key = "sk-5ddc81d9a00048f898f0c80f405fdf24"  # 需要设置OpenAI API密钥
         # 确保数据库路径指向word_learner目录
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.db_path = os.path.join(script_dir, "words.db")
@@ -247,6 +247,39 @@ class WordLearnerApp:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
+        # 改进的鼠标滚轮支持
+        def _on_mousewheel(event):
+            # 检查Canvas是否有滚动内容
+            if canvas.winfo_exists():
+                # Windows系统
+                if event.delta:
+                    canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                # Linux系统
+                elif event.num == 4:
+                    canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    canvas.yview_scroll(1, "units")
+        
+        def _bind_to_mousewheel(event):
+            # 绑定多种滚轮事件以支持不同平台
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows
+            canvas.bind_all("<Button-4>", _on_mousewheel)   # Linux向上
+            canvas.bind_all("<Button-5>", _on_mousewheel)   # Linux向下
+            # 设置焦点到canvas
+            canvas.focus_set()
+        
+        def _unbind_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+        
+        # 绑定鼠标进入和离开事件
+        canvas.bind('<Enter>', _bind_to_mousewheel)
+        canvas.bind('<Leave>', _unbind_from_mousewheel)
+        
+        # 确保Canvas可以获得焦点
+        canvas.bind("<Button-1>", lambda e: canvas.focus_set())
+        
         # 帮助内容
         help_content = [
             {
@@ -337,11 +370,12 @@ class WordLearnerApp:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=(20, 0))
         
-        ttk.Button(button_frame, text="知道了", 
-                  command=help_dialog.destroy).pack(side=tk.RIGHT)
+        #ttk.Button(button_frame, text="知道了", 
+        #          command=help_dialog.destroy).pack(side=tk.RIGHT)
         
-        # 设置焦点
+        # 设置焦点并确保滚轮事件在对话框打开后立即可用
         help_dialog.focus_set()
+        help_dialog.after(100, lambda: canvas.focus_set())  # 延迟设置焦点
     
     def create_ui(self):
         """创建现代化用户界面"""
@@ -411,9 +445,9 @@ class WordLearnerApp:
                              command=self.show_help)
         help_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
-        settings_btn = ttk.Button(actions_frame, text="⚙️ 设置", style="Secondary.TButton",
-                                 command=lambda: self.show_page("settings"))
-        settings_btn.pack(side=tk.RIGHT)
+        #settings_btn = ttk.Button(actions_frame, text="⚙️ 设置", style="Secondary.TButton",
+        #                         command=lambda: self.show_page("settings"))
+        #settings_btn.pack(side=tk.RIGHT)
     
     def show_page(self, page_name):
         """显示指定页面"""
@@ -1094,6 +1128,12 @@ class WordLearnerApp:
             # 移除蒙层
             self.remove_overlay()
             
+            # 重新显示单词标签
+            if hasattr(self, 'recognized_words') and hasattr(self, 'recognized_words_positions'):
+                if hasattr(self, 'original_img_width') and hasattr(self, 'original_img_height'):
+                    self.draw_word_labels(self.recognized_words, self.recognized_words_positions, 
+                                        self.original_img_width, self.original_img_height)
+            
             # 强制立即更新界面
             self.root.update_idletasks()
             self.root.update()
@@ -1108,6 +1148,9 @@ class WordLearnerApp:
                 messagebox.showinfo("提示", "没有可用的描述文本")
                 return
                 
+            # 隐藏单词标签
+            self.image_canvas.delete("word_label")
+            
             # 开始填词
             self.start_fill_words()
             self.fill_words_btn.config(text="结束填词")
@@ -1261,6 +1304,11 @@ class WordLearnerApp:
             # 调用API识别文字
             # api_service.recognize_text 返回: success, message, words, positions, sentence
             success, message, recognized_words_list, recognized_words_positions, description = self.api_service.recognize_text(self.current_image_path)
+            
+            # 保存识别结果和原始图片尺寸
+            self.recognized_words_positions = recognized_words_positions
+            self.original_img_width = original_img_width
+            self.original_img_height = original_img_height
             
             # 步骤3: 处理识别结果
             status_label.config(text="正在处理识别结果...")
@@ -1552,6 +1600,11 @@ class WordLearnerApp:
                 messagebox.showinfo("成功", f"单词 '{word}' 已添加到生词本")
             
             conn.commit()
+
+            # 添加图片到相册（这是关键的修复）
+            if self.current_image_path:
+                self.album_manager.add_image_to_album(self.current_image_path, has_words=True)
+
         except Exception as e:
             messagebox.showerror("错误", f"添加单词失败: {str(e)}")
         finally:
@@ -2343,7 +2396,7 @@ class WordLearnerApp:
             # 显示恭喜弹层
             self.show_congratulations()
         else:
-            self.status_bar.config(text=f"已正确填写 {correct_count}/{total_words} 个单词")
+            #self.status_bar.config(text=f"填写 {correct_count}/{total_words} 个单词")
             # 检查提示按钮是否存在
             if hasattr(self, 'hint_btn') and self.hint_btn.winfo_exists():
                 self.hint_btn.config(state=tk.NORMAL)
