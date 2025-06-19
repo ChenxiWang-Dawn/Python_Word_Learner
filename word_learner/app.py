@@ -1376,8 +1376,8 @@ class WordLearnerApp:
         
         # 定义现代化配色方案
         colors = {
-            'primary': '#2563eb',      # 现代蓝
-            'primary_dark': '#1d4ed8', # 深蓝
+            'primary': '#3670ee',      # 自定义蓝色 RGB(54, 112, 238)
+            'primary_dark': '#2861de', # 自定义深蓝色 RGB(40, 97, 222)
             'secondary': '#10b981',    # 翠绿
             'accent': '#f59e0b',       # 橙色
             'background': '#f8fafc',   # 浅灰白
