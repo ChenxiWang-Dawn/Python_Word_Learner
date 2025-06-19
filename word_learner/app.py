@@ -660,13 +660,17 @@ class WordLearnerApp:
         self.right_frame = ttk.Frame(page, width=500)  # 保存right_frame的引用
         self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        # 左侧图片区域
-        self.image_frame = ttk.LabelFrame(left_frame, text="图片")
+        # 左侧图片区域 - 简洁风格
+        self.image_frame = ttk.LabelFrame(left_frame, text="图片预览")
         self.image_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # 图片区域改为Canvas
-        self.image_canvas = tk.Canvas(self.image_frame, width=400, height=300)
-        self.image_canvas.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 图片Canvas容器 - 移除内边距让Canvas完全填满
+        canvas_container = tk.Frame(self.image_frame, bg="#e9ecef", relief=tk.SOLID, bd=1)
+        canvas_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # 图片区域改为Canvas - 移除固定尺寸，让其完全填满容器
+        self.image_canvas = tk.Canvas(canvas_container, bg="#f8f9fa", highlightthickness=0)
+        self.image_canvas.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
         
         # 添加句子显示区域
         self.sentence_frame = ttk.LabelFrame(left_frame, text="图片描述")
@@ -1239,16 +1243,123 @@ class WordLearnerApp:
             conn.close()
     
     def show_default_image(self):
-        """显示默认图片"""
-        img = Image.new('RGB', (400, 300), color=(240, 240, 240))
-        self.display_image(img)
+        """显示简洁的默认图片预览界面"""
+        # 延迟绘制，确保Canvas尺寸已经确定
+        self.root.after(100, self._draw_default_image)
+        
+        # 绑定Canvas尺寸变化事件
+        self.image_canvas.bind("<Configure>", self._on_canvas_resize)
+    
+    def _draw_default_image(self):
+        """实际绘制默认图片界面"""
+        # 清空画布
+        self.image_canvas.delete("all")
+        
+        # 获取实际画布尺寸
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        # 如果画布尺寸太小，等待尺寸更新
+        if canvas_width <= 10 or canvas_height <= 10:
+            self.root.after(100, self._draw_default_image)
+            return
+        
+        # 绘制完全填满的背景
+        self.image_canvas.create_rectangle(0, 0, canvas_width, canvas_height, 
+                                         fill="#f8f9fa", outline="", width=0, tags="default")
+        
+        # 计算居中位置
+        icon_x = canvas_width // 2
+        icon_y = canvas_height // 2 - 40
+        
+        # 使用大号相机emoji图标
+        self.image_canvas.create_text(icon_x, icon_y, 
+                                    text="📷", 
+                                    font=("Apple Color Emoji", 64), 
+                                    fill="#495057", tags="default")
+        
+        # 主标题文字
+        self.image_canvas.create_text(icon_x, icon_y+45, 
+                                    text="点击拍照或上传图片", 
+                                    font=("SF Pro Display", 16, "bold"), 
+                                    fill="#2c3e50", tags="default")
+        
+        # 副标题文字
+        self.image_canvas.create_text(icon_x, icon_y+75, 
+                                    text="开始您的英语学习之旅", 
+                                    font=("SF Pro Display", 12), 
+                                    fill="#6c757d", tags="default")
+        
+        # 绑定点击事件
+        self.image_canvas.bind("<Button-1>", self.on_canvas_click)
+        self.image_canvas.configure(cursor="hand2")
+    
+    def _on_canvas_resize(self, event):
+        """Canvas尺寸变化时重新绘制默认界面"""
+        # 只有在显示默认界面时才重新绘制
+        if self.image_canvas.find_withtag("default"):
+            self.root.after(50, self._draw_default_image)
+    
+    def on_canvas_click(self, event):
+        """当点击空白画布时显示操作选项"""
+        # 创建弹出菜单
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="📷 拍照", command=self.take_photo)
+        menu.add_command(label="📁 上传图片", command=self.upload_image)
+        
+        # 在鼠标位置显示菜单
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
     
     def display_image(self, img):
-        """在界面上显示图片（在Canvas上）"""
-        img = resize_image(img, 400, 300)
-        self._canvas_img = ImageTk.PhotoImage(img)
+        """在界面上显示图片（完全填满Canvas）"""
+        # 获取实际Canvas尺寸
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        # 如果Canvas尺寸还未确定，使用默认值
+        if canvas_width <= 10 or canvas_height <= 10:
+            canvas_width = 450
+            canvas_height = 320
+        
+        # 计算缩放比例以填满整个画布
+        img_width, img_height = img.size
+        scale_x = canvas_width / img_width
+        scale_y = canvas_height / img_height
+        
+        # 使用较大的缩放比例确保图片完全填满画布
+        scale = max(scale_x, scale_y)
+        
+        # 计算新的尺寸
+        new_width = int(img_width * scale)
+        new_height = int(img_height * scale)
+        
+        # 缩放图片
+        img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+        
+        # 如果图片比画布大，裁剪中心部分
+        if new_width > canvas_width or new_height > canvas_height:
+            # 计算裁剪区域（居中裁剪）
+            left = (new_width - canvas_width) // 2
+            top = (new_height - canvas_height) // 2
+            right = left + canvas_width
+            bottom = top + canvas_height
+            
+            img_resized = img_resized.crop((left, top, right, bottom))
+        
+        # 创建PhotoImage
+        self._canvas_img = ImageTk.PhotoImage(img_resized)
         self.image_canvas.delete("all")
+        
+        # 在画布上显示图片（填满整个画布）
         self.image_canvas.create_image(0, 0, anchor=tk.NW, image=self._canvas_img)
+        
+        # 移除点击事件绑定和手型光标
+        self.image_canvas.unbind("<Button-1>")
+        self.image_canvas.unbind("<Configure>")
+        self.image_canvas.configure(cursor="")
     
     def create_statusbar(self):
         """创建状态栏"""
