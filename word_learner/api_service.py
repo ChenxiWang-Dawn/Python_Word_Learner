@@ -83,7 +83,7 @@ class APIService:
             
             print("DEBUG: Sending request to API...")
             response = self.client.chat.completions.create(
-                model="qwen-vl-plus",
+                model="qwen-vl-max",
                 messages=messages,
                 max_tokens=2000
             )
@@ -92,7 +92,18 @@ class APIService:
             
             # 尝试解析返回的JSON
             try:
-                words_data = json.loads(response.choices[0].message.content)
+                content = response.choices[0].message.content
+                print(f"DEBUG: API Response: {content}")
+                
+                # 处理可能的markdown代码块
+                cleaned_content = content.strip()
+                if cleaned_content.startswith("```json"):
+                    cleaned_content = cleaned_content[7:]
+                if cleaned_content.endswith("```"):
+                    cleaned_content = cleaned_content[:-3]
+                cleaned_content = cleaned_content.strip()
+                
+                words_data = json.loads(cleaned_content)
                 print(f"DEBUG: Parsed words data: {words_data}")
                 
                 if not isinstance(words_data, list):
@@ -119,6 +130,7 @@ class APIService:
                 return True, "识别成功", words, positions, sentence
             except json.JSONDecodeError as e:
                 print(f"ERROR: Failed to parse API response as JSON: {e}")
+                print(f"ERROR: Raw content: {response.choices[0].message.content}")
                 return False, "API返回格式错误", [],[], []
             except Exception as e:
                 print(f"ERROR: Unexpected error processing API response: {e}")
@@ -142,7 +154,7 @@ class APIService:
                 },
                 {
                     "role": "user",
-                    "content": f"请提供单词 '{word}' 的中文释义、音标，以JSON格式返回，格式为：{{\"translation\": \"中文释义\", \"phonetic\": \"音标\"}}。只返回JSON，不要返回其他内容。"
+                    "content": f"请提供单词 '{word}' 的中文释义、音标和一个英文例句，以JSON格式返回，格式为：{{\"translation\": \"中文释义\", \"phonetic\": \"音标\", \"example\": \"英文例句\"}}。只返回JSON，不要返回其他内容。"
                 }
             ]
 
@@ -169,14 +181,46 @@ class APIService:
                 data.setdefault("translation", "无法获取释义")
                 data.setdefault("phonetic", "")
                 data.setdefault("example", "无法获取例句")
-
-                return True, "查询成功 (Qwen)", data, ""
+                
+                return True, "查询成功", data, ""
             except json.JSONDecodeError:
                 print(f"Qwen Turbo response content: {content}")
                 return False, "无法解析Qwen响应", {}, "无法解析API响应"
         except Exception as e:
             print(f"Qwen Turbo API Error: {e}")
             return False, f"查询过程中出错: {str(e)}", {}, f"查询过程中出错: {str(e)}"
+
+    def translate_text(self, text):
+        """翻译文本 (使用 Qwen-Turbo)"""
+        if not self.client:
+            return False, "API客户端未初始化", ""
+        
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一位专业的翻译专家。请将英文文本翻译成中文，保持翻译的准确性和流畅性。只返回翻译结果，不要添加任何额外的解释或说明。"
+                },
+                {
+                    "role": "user",
+                    "content": f"请将以下英文文本翻译成中文：\n\n{text}"
+                }
+            ]
+
+            completion = self.client.chat.completions.create(
+                model="qwen-turbo",
+                messages=messages,
+                max_tokens=500,
+                temperature=0.3  # 降低温度以获得更稳定的翻译结果
+            )
+
+            translation = completion.choices[0].message.content.strip()
+            # 移除可能的引号和其他格式
+            translation = translation.strip('"\'')
+            return True, "翻译成功", translation
+        except Exception as e:
+            print(f"Translation API Error: {e}")
+            return False, f"翻译过程中出错: {str(e)}", ""
 
 # 可独立运行的测试函数
 def main():
