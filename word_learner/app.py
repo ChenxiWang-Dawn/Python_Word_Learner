@@ -213,10 +213,6 @@ class WordLearnerApp:
         # 显示选定页面
         self.pages[page_name].pack(fill=tk.BOTH, expand=True)
         
-        # 更新导航栏活动状态
-        if hasattr(self, 'nav_buttons'):
-            self.update_nav_active_state(page_name)
-        
         # 更新状态栏
         page_titles = {
             "camera": "📷 拍照识别",
@@ -244,43 +240,148 @@ class WordLearnerApp:
             self.album_manager.load_album_images()
     
     def create_bottom_navbar(self):
-        """创建底部导航栏"""
-        self.navbar = ttk.Frame(self.root)
-        self.navbar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 5))
+        """创建现代化底部导航栏"""
+        # 创建主导航容器，使用渐变背景色
+        self.navbar_container = tk.Frame(self.root, bg="#f8fafc", height=80)
+        self.navbar_container.pack(side=tk.BOTTOM, fill=tk.X, pady=0)
+        self.navbar_container.pack_propagate(False)
         
-        # 创建按钮样式
-        style = ttk.Style()
-        style.configure("Nav.TButton", padding=5)  # 减小按钮内边距
+        # 创建导航栏内部框架
+        self.navbar = tk.Frame(self.navbar_container, bg="#ffffff", height=75)
+        self.navbar.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.navbar.pack_propagate(False)
         
-        # 相机/拍照页面按钮
-        self.camera_btn = ttk.Button(self.navbar, text="拍照识别", style="Nav.TButton", 
-                                     command=lambda: self.show_page("camera"))
-        self.camera_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 添加阴影效果（通过边框模拟）
+        shadow_frame = tk.Frame(self.navbar_container, bg="#e2e8f0", height=1)
+        shadow_frame.pack(fill=tk.X, side=tk.TOP)
         
-        # 生词本按钮
-        self.wordbook_btn = ttk.Button(self.navbar, text="生词本", style="Nav.TButton", 
-                                       command=lambda: self.show_page("wordbook"))
-        self.wordbook_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 导航按钮数据 - 包含图标和文字
+        nav_items = [
+            {"name": "camera", "icon": "📷", "text": "拍照识别", "color": "#3b82f6"},
+            {"name": "wordbook", "icon": "📚", "text": "生词本", "color": "#10b981"},
+            {"name": "album", "icon": "🖼️", "text": "相册", "color": "#f59e0b"},
+            {"name": "words", "icon": "📖", "text": "单词", "color": "#8b5cf6"},
+            {"name": "review", "icon": "🔄", "text": "复习", "color": "#ef4444"},
+            {"name": "settings", "icon": "⚙️", "text": "设置", "color": "#6b7280"}
+        ]
         
-        # 相册按钮
-        self.album_btn = ttk.Button(self.navbar, text="相册", style="Nav.TButton", 
-                                   command=lambda: self.show_page("album"))
-        self.album_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 存储按钮引用
+        self.nav_buttons = {}
+        self.nav_indicators = {}
         
-        # 单词按钮
-        self.words_btn = ttk.Button(self.navbar, text="单词", style="Nav.TButton", 
-                                   command=lambda: self.show_page("words"))
-        self.words_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 创建导航按钮
+        for i, item in enumerate(nav_items):
+            # 创建按钮容器
+            btn_container = tk.Frame(self.navbar, bg="#ffffff")
+            btn_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=2)
+            
+            # 创建按钮 - 水平布局
+            btn_frame = tk.Frame(btn_container, bg="#ffffff", cursor="hand2")
+            btn_frame.pack(expand=True, fill=tk.BOTH, pady=8)
+            
+            # 图标标签 - 左侧显示
+            icon_label = tk.Label(btn_frame, text=item["icon"], 
+                                font=("Apple Color Emoji", 18), 
+                                bg="#ffffff", fg=item["color"])
+            icon_label.pack(side=tk.LEFT, padx=(8, 4))
+            
+            # 文字标签 - 右侧显示，更清晰的字体和颜色
+            text_label = tk.Label(btn_frame, text=item["text"], 
+                                font=("SF Pro Display", 11, "normal"), 
+                                bg="#ffffff", fg="#1a202c")
+            text_label.pack(side=tk.LEFT, padx=(0, 8))
+            
+            # 活跃指示器
+            indicator = tk.Frame(btn_container, bg="#ffffff", height=3)
+            indicator.pack(side=tk.BOTTOM, fill=tk.X, padx=8)
+            
+            # 存储引用
+            self.nav_buttons[item["name"]] = {
+                "container": btn_container,
+                "frame": btn_frame,
+                "icon": icon_label,
+                "text": text_label,
+                "color": item["color"]
+            }
+            self.nav_indicators[item["name"]] = indicator
+            
+            # 绑定点击事件
+            def make_nav_handler(page_name):
+                return lambda e: self.handle_nav_click(page_name)
+            
+            for widget in [btn_frame, icon_label, text_label]:
+                widget.bind("<Button-1>", make_nav_handler(item["name"]))
+                widget.bind("<Enter>", lambda e, btn=item["name"]: self.on_nav_hover(btn, True))
+                widget.bind("<Leave>", lambda e, btn=item["name"]: self.on_nav_hover(btn, False))
         
-        # 复习按钮
-        self.review_btn = ttk.Button(self.navbar, text="复习", style="Nav.TButton", 
-                                     command=lambda: self.show_page("review"))
-        self.review_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 设置默认活跃按钮
+        self.active_nav_button = "camera"
+        self.update_nav_active_state("camera")
+    
+    def handle_nav_click(self, page_name):
+        """处理导航按钮点击"""
+        if page_name != self.active_nav_button:
+            # 添加点击动画效果
+            self.animate_nav_click(page_name)
+            
+            # 更新活跃状态
+            self.update_nav_active_state(page_name)
+            
+            # 切换页面
+            self.show_page(page_name)
+            self.active_nav_button = page_name
+    
+    def animate_nav_click(self, page_name):
+        """导航按钮点击动画"""
+        btn = self.nav_buttons[page_name]
         
-        # 设置按钮
-        self.settings_btn = ttk.Button(self.navbar, text="设置", style="Nav.TButton", 
-                                       command=lambda: self.show_page("settings"))
-        self.settings_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # 点击缩放效果
+        def scale_down():
+            btn["icon"].config(font=("Apple Color Emoji", 16))
+            self.root.after(100, scale_up)
+        
+        def scale_up():
+            btn["icon"].config(font=("Apple Color Emoji", 18))
+        
+        scale_down()
+    
+    def on_nav_hover(self, page_name, is_enter):
+        """导航按钮悬停效果"""
+        btn = self.nav_buttons[page_name]
+        
+        if is_enter and page_name != self.active_nav_button:
+            # 悬停效果 - 背景色变化
+            btn["frame"].config(bg="#f1f5f9")
+            btn["icon"].config(bg="#f1f5f9")
+            btn["text"].config(bg="#f1f5f9", fg=btn["color"], font=("SF Pro Display", 11, "bold"))
+        else:
+            # 恢复默认状态
+            if page_name == self.active_nav_button:
+                btn["frame"].config(bg="#eff6ff")
+                btn["icon"].config(bg="#eff6ff")
+                btn["text"].config(bg="#eff6ff", fg=btn["color"], font=("SF Pro Display", 11, "bold"))
+            else:
+                btn["frame"].config(bg="#ffffff")
+                btn["icon"].config(bg="#ffffff")
+                btn["text"].config(bg="#ffffff", fg="#374151", font=("SF Pro Display", 11))
+    
+    def update_nav_active_state(self, active_page):
+        """更新导航栏活跃状态"""
+        for page_name, btn in self.nav_buttons.items():
+            indicator = self.nav_indicators[page_name]
+            
+            if page_name == active_page:
+                # 活跃状态 - 蓝色背景和指示器
+                btn["frame"].config(bg="#eff6ff")
+                btn["icon"].config(bg="#eff6ff", fg=btn["color"])
+                btn["text"].config(bg="#eff6ff", fg=btn["color"], font=("SF Pro Display", 11, "bold"))
+                indicator.config(bg=btn["color"])
+            else:
+                # 非活跃状态 - 默认样式
+                btn["frame"].config(bg="#ffffff")
+                btn["icon"].config(bg="#ffffff", fg="#9ca3af")
+                btn["text"].config(bg="#ffffff", fg="#6b7280", font=("SF Pro Display", 11))
+                indicator.config(bg="#ffffff")
     
     def save_settings(self):
         """保存设置"""
