@@ -24,11 +24,31 @@ def pronounce_word(word):
     
     try:
         import platform
+        import subprocess
         system = platform.system()
         
         if system == "Darwin":  # macOS
-            os.system(f"say {word}")
-            return True, "发音成功"
+            # 使用更安全的subprocess方式，避免shell注入
+            # 设置语音速度和音量参数
+            try:
+                # 根据文本长度动态设置超时时间
+                # 按180 WPM计算，每个单词约0.33秒，加上缓冲时间
+                estimated_duration = max(10, len(word.split()) * 0.5 + 5)
+                
+                result = subprocess.run(
+                    ["say", "-r", "180", "-v", "Alex", word], 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=estimated_duration
+                )
+                if result.returncode == 0:
+                    return True, "发音成功"
+                else:
+                    return False, f"发音命令执行失败: {result.stderr}"
+            except subprocess.TimeoutExpired:
+                return False, f"发音超时（预计需要{estimated_duration:.1f}秒）"
+            except FileNotFoundError:
+                return False, "系统不支持say命令"
         elif system == "Windows":
             try:
                 import win32com.client
@@ -38,7 +58,19 @@ def pronounce_word(word):
             except ImportError:
                 return False, "Windows系统需要安装pywin32库"
         else:
-            return False, "当前系统不支持文本转语音"
+            # 尝试使用espeak（Linux）
+            try:
+                result = subprocess.run(
+                    ["espeak", word], 
+                    capture_output=True, 
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    return True, "发音成功"
+                else:
+                    return False, "espeak发音失败"
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                return False, "当前系统不支持文本转语音"
     except Exception as e:
         return False, f"发音失败: {str(e)}"
 

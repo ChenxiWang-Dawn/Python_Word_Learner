@@ -963,13 +963,67 @@ class WordLearnerApp:
         self.image_canvas.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
         
         # 添加句子显示区域
-        self.sentence_frame = ttk.LabelFrame(left_frame, text="图片描述")
+        self.sentence_frame = ttk.LabelFrame(left_frame, text="")
         self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+        
+        # 创建标题行和按钮
+        title_frame = ttk.Frame(self.sentence_frame)
+        title_frame.pack(fill=tk.X, padx=10, pady=(5, 0))
+        
+        # 标题标签
+        title_label = ttk.Label(title_frame, text="图片描述", font=("Arial", 10, "bold"))
+        title_label.pack(side=tk.LEFT)
+        
+        # 小按钮放在标题后面
+        self.read_desc_btn = ttk.Button(title_frame, text="🔊", command=self.read_description, width=3)
+        self.read_desc_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        self.translate_desc_btn = ttk.Button(title_frame, text="🌐", command=self.translate_description, width=3)
+        self.translate_desc_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # 添加悬浮提示框
+        def create_tooltip(widget, text):
+            tooltip = None
+            
+            def on_enter(event):
+                nonlocal tooltip
+                x = event.widget.winfo_rootx() + 25
+                y = event.widget.winfo_rooty() - 25
+                
+                tooltip = tk.Toplevel()
+                tooltip.wm_overrideredirect(True)
+                tooltip.wm_geometry(f"+{x}+{y}")
+                
+                label = tk.Label(tooltip, text=text, 
+                                background="#ffffe0", 
+                                foreground="#000000",
+                                relief="solid", 
+                                borderwidth=1,
+                                font=("Arial", 9))
+                label.pack()
+                
+                # 同时在状态栏显示
+                self.status_bar.config(text=text)
+            
+            def on_leave(event):
+                nonlocal tooltip
+                if tooltip:
+                    tooltip.destroy()
+                    tooltip = None
+                self.status_bar.config(text="就绪")
+            
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+        
+        create_tooltip(self.read_desc_btn, "朗读英文描述")
+        create_tooltip(self.translate_desc_btn, "翻译为中文")
         
         # 创建文本显示区域
         self.sentence_text = tk.Text(self.sentence_frame, height=5, wrap=tk.WORD, width=50)
         self.sentence_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.sentence_text.config(state=tk.DISABLED)
+        
+
         
         # 注释掉原来的填词区域，现在在右侧创建
         # self.fill_words_frame = ttk.LabelFrame(left_frame, text="填词练习")
@@ -1305,6 +1359,8 @@ class WordLearnerApp:
             self.sentence_text.config(state=tk.NORMAL)
             self.sentence_text.config(state=tk.DISABLED)
             self.sentence_frame.pack(fill=tk.BOTH, expand=False, pady=5)
+            
+
             
             # 移除填词提示
             self.remove_fill_words_hint()
@@ -1764,11 +1820,20 @@ class WordLearnerApp:
         """发音当前单词"""
         word = self.word_label.cget("text")
         if not word:
+            messagebox.showinfo("提示", "请先从单词列表中选择一个单词")
+            self.status_bar.config(text="请先选择一个单词")
             return
         
+        # 显示发音状态
+        self.status_bar.config(text=f"正在发音: {word}")
+        self.root.update()
+        
         success, message = pronounce_word(word)
-        if not success:
+        if success:
+            self.status_bar.config(text=f"已发音: {word}")
+        else:
             self.status_bar.config(text=message)
+            messagebox.showerror("发音失败", message)
     
     def query_online(self):
         """在线查询当前单词"""
@@ -2374,44 +2439,96 @@ class WordLearnerApp:
             # print(f"Error: Word index {index} out of bounds for recognized_words.") # 日志
 
     def read_description(self):
-        """朗读图片描述"""
-        if not self.sentence_text.get(1.0, tk.END).strip():
+        """朗读图片描述（仅朗读英文部分）"""
+        current_text = self.sentence_text.get(1.0, tk.END).strip()
+        if not current_text:
             messagebox.showinfo("提示", "没有可朗读的描述")
+            self.status_bar.config(text="没有可朗读的描述")
+            return
+        
+        # 只提取英文部分进行朗读，不朗读中文翻译
+        english_text = current_text.split("\n\n中文翻译：")[0]
+        
+        if not english_text.strip():
+            messagebox.showinfo("提示", "没有英文内容可朗读")
+            self.status_bar.config(text="没有英文内容可朗读")
             return
             
-        description = self.sentence_text.get(1.0, tk.END).strip()
-        success, message = pronounce_word(description)
-        if not success:
+        # 显示朗读状态
+        self.status_bar.config(text="正在朗读英文描述...")
+        self.read_desc_btn.config(state=tk.DISABLED)
+        self.root.update()
+        
+        success, message = pronounce_word(english_text)
+        
+        # 恢复按钮状态
+        self.read_desc_btn.config(state=tk.NORMAL)
+        
+        if success:
+            self.status_bar.config(text="英文描述朗读完成")
+        else:
             self.status_bar.config(text=message)
+            messagebox.showerror("朗读失败", message)
 
     def translate_description(self):
         """翻译图片描述"""
-        if not self.sentence_text.get(1.0, tk.END).strip():
+        current_text = self.sentence_text.get(1.0, tk.END).strip()
+        if not current_text:
             messagebox.showinfo("提示", "没有可翻译的描述")
+            self.status_bar.config(text="没有可翻译的描述")
+            return
+        
+        # 检查是否已经有翻译内容
+        if "\n\n中文翻译：" in current_text:
+            messagebox.showinfo("提示", "已经翻译过了")
+            self.status_bar.config(text="已经翻译过了")
             return
             
-        description = self.sentence_text.get(1.0, tk.END).strip()
+        # 提取原始英文描述（去除可能的翻译部分）
+        original_description = current_text.split("\n\n中文翻译：")[0]
         
         try:
             # 显示加载状态
-            self.status_bar.config(text="正在翻译...")
+            self.status_bar.config(text="正在翻译图片描述...")
+            self.translate_desc_btn.config(state=tk.DISABLED)
             self.root.update()
             
             # 调用API翻译
-            success, message, translation = self.api_service.translate_text(description)
+            success, message, translation = self.api_service.translate_text(original_description)
+            
+            # 恢复按钮状态
+            self.translate_desc_btn.config(state=tk.NORMAL)
             
             if success:
-                # 更新翻译显示
-                self.translation_text.config(state=tk.NORMAL)
-                self.translation_text.delete(1.0, tk.END)
-                self.translation_text.insert(tk.END, translation)
-                self.translation_text.config(state=tk.DISABLED)
+                # 分别插入英文和中文部分，并设置不同的样式
+                self.sentence_text.config(state=tk.NORMAL)
+                self.sentence_text.delete(1.0, tk.END)
                 
-                self.status_bar.config(text="翻译完成")
+                # 插入英文描述（保持默认样式）
+                self.sentence_text.insert(tk.END, original_description)
+                
+                # 插入换行和中文标题
+                self.sentence_text.insert(tk.END, "\n\n中文翻译：", "chinese_label")
+                
+                # 插入中文翻译内容
+                self.sentence_text.insert(tk.END, translation, "chinese_translation")
+                
+                # 配置中文部分的样式
+                self.sentence_text.tag_config("chinese_label", 
+                                             foreground="#2c5aa0", 
+                                             font=("Arial", 10, "bold"))
+                self.sentence_text.tag_config("chinese_translation", 
+                                             foreground="#4a4a4a", 
+                                             font=("Arial", 10))
+                
+                self.sentence_text.config(state=tk.DISABLED)
+                
+                self.status_bar.config(text="图片描述翻译完成")
             else:
                 self.status_bar.config(text=message)
-                messagebox.showerror("错误", message)
+                messagebox.showerror("翻译失败", message)
         except Exception as e:
+            self.translate_desc_btn.config(state=tk.NORMAL)
             self.status_bar.config(text=f"翻译过程中出错: {str(e)}")
             messagebox.showerror("错误", f"翻译过程中出错: {str(e)}")
 
