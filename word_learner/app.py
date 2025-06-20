@@ -2233,9 +2233,15 @@ class WordLearnerApp:
         return corrected
 
     def highlight_words(self, text, words):
-        """高亮显示文本中的单词"""
+        """高亮显示文本中的单词，保持现有的翻译样式"""
         self.sentence_text.config(state=tk.NORMAL)
         self.sentence_text.tag_remove("highlight", "1.0", tk.END)
+        
+        # 检查是否包含翻译内容（通过检查是否有中文字符在多行文本中）
+        full_text = self.sentence_text.get(1.0, tk.END).strip()
+        lines = full_text.split('\n')
+        has_translation = len(lines) > 2 and any('\u4e00' <= char <= '\u9fff' for char in lines[-1])
+        
         for word in words:
             start_pos = "1.0"
             while True:
@@ -2243,8 +2249,30 @@ class WordLearnerApp:
                 if not start_pos:
                     break
                 end_pos = f"{start_pos}+{len(word)}c"
-                self.sentence_text.tag_add("highlight", start_pos, end_pos)
+                
+                # 如果有翻译内容，检查当前单词是否在中文翻译部分
+                if has_translation:
+                    # 找到第一个包含中文字符的行的起始位置
+                    current_text = self.sentence_text.get("1.0", tk.END)
+                    chinese_start_pos = None
+                    for i, line in enumerate(current_text.split('\n')):
+                        if any('\u4e00' <= char <= '\u9fff' for char in line):
+                            chinese_start_pos = f"{i+1}.0"
+                            break
+                    
+                    if chinese_start_pos:
+                        # 如果当前单词在中文部分之前（即在英文描述部分），才进行高亮
+                        if self.sentence_text.compare(start_pos, "<", chinese_start_pos):
+                            self.sentence_text.tag_add("highlight", start_pos, end_pos)
+                    else:
+                        # 如果没找到中文内容，正常高亮
+                        self.sentence_text.tag_add("highlight", start_pos, end_pos)
+                else:
+                    # 没有翻译内容，正常高亮
+                    self.sentence_text.tag_add("highlight", start_pos, end_pos)
+                
                 start_pos = end_pos
+        
         self.sentence_text.tag_config("highlight", foreground="red", font=("Arial", 10, "bold"))
         self.sentence_text.config(state=tk.DISABLED)
 
@@ -2447,7 +2475,7 @@ class WordLearnerApp:
             return
         
         # 只提取英文部分进行朗读，不朗读中文翻译
-        english_text = current_text.split("\n\n中文翻译：")[0]
+        english_text = current_text.split('\n\n')[0]
         
         if not english_text.strip():
             messagebox.showinfo("提示", "没有英文内容可朗读")
@@ -2478,14 +2506,15 @@ class WordLearnerApp:
             self.status_bar.config(text="没有可翻译的描述")
             return
         
-        # 检查是否已经有翻译内容
-        if "\n\n中文翻译：" in current_text:
+        # 检查是否已经有翻译内容（通过检查是否有两个连续换行后的中文内容）
+        lines = current_text.split('\n')
+        if len(lines) > 2 and any('\u4e00' <= char <= '\u9fff' for char in lines[-1]):
             messagebox.showinfo("提示", "已经翻译过了")
             self.status_bar.config(text="已经翻译过了")
             return
             
-        # 提取原始英文描述（去除可能的翻译部分）
-        original_description = current_text.split("\n\n中文翻译：")[0]
+        # 提取原始英文描述（如果有多行，取第一段作为英文描述）
+        original_description = current_text.split('\n\n')[0]
         
         try:
             # 显示加载状态
@@ -2507,19 +2536,21 @@ class WordLearnerApp:
                 # 插入英文描述（保持默认样式）
                 self.sentence_text.insert(tk.END, original_description)
                 
-                # 插入换行和中文标题
-                self.sentence_text.insert(tk.END, "\n\n中文翻译：", "chinese_label")
-                
-                # 插入中文翻译内容
+                # 插入换行和中文翻译内容（直接显示翻译，不加标题）
+                self.sentence_text.insert(tk.END, "\n\n", "")
                 self.sentence_text.insert(tk.END, translation, "chinese_translation")
                 
-                # 配置中文部分的样式
-                self.sentence_text.tag_config("chinese_label", 
-                                             foreground="#2c5aa0", 
-                                             font=("Arial", 10, "bold"))
+                # 配置中文翻译的样式
                 self.sentence_text.tag_config("chinese_translation", 
                                              foreground="#4a4a4a", 
                                              font=("Arial", 10))
+                
+                # 重新高亮英文部分的单词（如果有识别的单词）
+                if hasattr(self, 'recognized_words') and self.recognized_words:
+                    self.highlight_words(original_description, self.recognized_words)
+                
+                # 强制刷新显示以确保样式生效
+                self.sentence_text.update_idletasks()
                 
                 self.sentence_text.config(state=tk.DISABLED)
                 
