@@ -55,6 +55,9 @@ class WordLearnerApp:
         # 初始化主题系统
         self.init_themes()
         
+        # 加载用户设置
+        self.load_settings()
+        
         # 设置样式（在创建UI之前）
         self.set_styles()
         
@@ -63,7 +66,8 @@ class WordLearnerApp:
         
         # 确保窗口大小合适
         self.root.update()
-        min_height = self.navbar.winfo_reqheight() + self.status_bar.winfo_reqheight() + 700
+        statusbar_height = self.status_bar.winfo_reqheight() if getattr(self, 'show_statusbar', False) else 0
+        min_height = self.navbar.winfo_reqheight() + statusbar_height + 700
         if self.root.winfo_height() < min_height:
             self.root.geometry(f"{self.root.winfo_width()}x{min_height}")
     
@@ -167,11 +171,24 @@ class WordLearnerApp:
     def load_settings(self):
         """加载用户设置"""
         try:
-            # 从数据库或配置文件加载主题设置
-            # 这里暂时使用默认值，您可以后续添加持久化存储
-            pass
-        except:
-            pass
+            # 尝试从settings.json加载设置
+            with open("settings.json", "r", encoding="utf-8") as f:
+                settings = json.load(f)
+                
+            # 加载API密钥
+            if "api_key" in settings:
+                self.api_key = settings["api_key"]
+                
+            # 加载主题设置
+            if "theme" in settings and settings["theme"] in self.themes:
+                self.current_theme = settings["theme"]
+                
+            # 加载状态栏显示设置
+            self.show_statusbar = settings.get("show_statusbar", False)  # 默认不显示
+            
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            # 如果文件不存在或格式错误，使用默认值
+            self.show_statusbar = False  # 默认不显示
     
     def save_theme_setting(self, theme_name):
         """保存主题设置"""
@@ -635,12 +652,30 @@ class WordLearnerApp:
     def save_settings(self):
         """保存设置"""
         self.api_key = self.api_key_var.get().strip()
+        self.show_statusbar = self.show_statusbar_var.get()
+        
         # 更新API服务的API密钥
         self.api_service.set_api_key(self.api_key)
-        # 更新复习管理器的API密钥
-        self.review_manager.api_key = self.api_key
-        # 更新单词管理器的API密钥
-        self.words_manager.api_key = self.api_key
+        # 更新复习管理器的API密钥（如果存在）
+        if hasattr(self, 'review_manager'):
+            self.review_manager.api_key = self.api_key
+        # 更新单词管理器的API密钥（如果存在）
+        if hasattr(self, 'words_manager'):
+            self.words_manager.api_key = self.api_key
+        
+        # 保存到配置文件
+        settings = {
+            "api_key": self.api_key,
+            "theme": self.current_theme,
+            "show_statusbar": self.show_statusbar
+        }
+        
+        try:
+            with open("settings.json", "w", encoding="utf-8") as f:
+                json.dump(settings, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存设置时出错: {e}")
+        
         messagebox.showinfo("成功", "设置已保存")
     
     def load_wordbook_words(self, search_term=""):
@@ -885,6 +920,13 @@ class WordLearnerApp:
         self.show_key_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(settings_frame, text="显示密钥", variable=self.show_key_var, 
                        command=lambda: api_key_entry.config(show="" if self.show_key_var.get() else "*")).pack(anchor=tk.W, padx=10)
+        
+        # 状态栏显示设置
+        ttk.Label(settings_frame, text="界面显示:").pack(anchor=tk.W, padx=10, pady=(15, 0))
+        self.show_statusbar_var = tk.BooleanVar(value=getattr(self, 'show_statusbar', False))
+        statusbar_checkbox = ttk.Checkbutton(settings_frame, text="显示状态栏", variable=self.show_statusbar_var, 
+                                           command=self.toggle_statusbar)
+        statusbar_checkbox.pack(anchor=tk.W, padx=10, pady=(0, 5))
         
         # 主题设置
         theme_frame = ttk.LabelFrame(page, text="主题设置")
@@ -2014,7 +2056,10 @@ class WordLearnerApp:
     def create_statusbar(self):
         """创建状态栏"""
         self.status_bar = ttk.Label(self.root, text="就绪", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=self.navbar)
+        
+        # 根据设置决定是否显示状态栏
+        if getattr(self, 'show_statusbar', False):
+            self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=self.navbar)
     
     def set_styles(self):
         """设置现代化界面样式"""
@@ -2844,6 +2889,22 @@ class WordLearnerApp:
         
         # 开始倒计时
         update_countdown(3)
+
+    def toggle_statusbar(self):
+        """切换状态栏显示/隐藏"""
+        self.show_statusbar = self.show_statusbar_var.get()
+        
+        if self.show_statusbar:
+            # 显示状态栏
+            if hasattr(self, 'status_bar'):
+                self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=self.navbar)
+        else:
+            # 隐藏状态栏
+            if hasattr(self, 'status_bar'):
+                self.status_bar.pack_forget()
+        
+        # 强制更新界面
+        self.root.update_idletasks()
 
 # 主程序入口
 if __name__ == "__main__":
