@@ -7,16 +7,178 @@ import re
 from PIL import Image, ImageTk
 import threading
 import time
+import sys
 
-# 导入自定义模块
-from camera import CameraCapture
-from review import ReviewManager
-from words import WordsManager
-from album import AlbumManager
-from utils import resize_image, pronounce_word, open_online_dictionary
-from word_details import WordDetailsManager
-from image_manager import ImageManager
-from api_service import APIService
+
+def get_resource_path(relative_path):
+    """获取资源文件的绝对路径，兼容打包后的app"""
+    try:
+        # PyInstaller创建的临时文件夹路径
+        base_path = sys._MEIPASS
+    except Exception:
+        # 开发环境路径
+        base_path = os.path.abspath(os.path.dirname(__file__))
+
+    return os.path.join(base_path, relative_path)
+
+
+# 导入自定义模块 - 改进错误处理
+try:
+    from api_service import APIService
+
+    print("APIService 导入成功")
+except ImportError as e:
+    print(f"导入 APIService 失败: {e}")
+    print(f"当前工作目录: {os.getcwd()}")
+    print(f"Python路径: {sys.path}")
+
+
+    # 创建一个简单的替代类
+    class APIService:
+        def __init__(self, api_key):
+            self.api_key = api_key
+            print("使用简化版 APIService")
+
+        def recognize_text(self, image_path):
+            return False, "API服务不可用", [], [], ""
+
+        def query_word_details(self, word):
+            return False, "API服务不可用", {}, "API服务不可用"
+
+        def translate_text(self, text):
+            return False, "API服务不可用", ""
+
+try:
+    from camera import CameraCapture
+
+    print("CameraCapture 导入成功")
+except ImportError as e:
+    print(f"导入 CameraCapture 失败: {e}")
+
+
+    # 创建简化版
+    class CameraCapture:
+        def __init__(self, root):
+            self.root = root
+            self.frame = None
+            self.camera_window = None
+
+        def open_camera(self):
+            import tkinter.messagebox as mb
+            mb.showerror("错误", "相机功能不可用")
+
+try:
+    from review import ReviewManager
+
+    print("ReviewManager 导入成功")
+except ImportError as e:
+    print(f"导入 ReviewManager 失败: {e}")
+
+
+    class ReviewManager:
+        def __init__(self, root, db_path, api_key, status_bar):
+            pass
+
+        def create_review_page(self, parent):
+            return ttk.Frame(parent)
+
+        def start_review(self):
+            pass
+
+try:
+    from words import WordsManager
+
+    print("WordsManager 导入成功")
+except ImportError as e:
+    print(f"导入 WordsManager 失败: {e}")
+
+
+    class WordsManager:
+        def __init__(self, root, db_path, api_key, status_bar, review_manager):
+            pass
+
+        def create_words_page(self, parent):
+            return ttk.Frame(parent)
+
+        def load_words(self):
+            pass
+
+try:
+    from album import AlbumManager
+
+    print("AlbumManager 导入成功")
+except ImportError as e:
+    print(f"导入 AlbumManager 失败: {e}")
+
+
+    class AlbumManager:
+        def __init__(self, root, db_path, status_bar):
+            pass
+
+        def create_album_page(self, parent):
+            return ttk.Frame(parent)
+
+        def load_album_images(self):
+            pass
+
+        def add_image_to_album(self, image_path, has_words=False):
+            pass
+
+try:
+    from utils import resize_image, pronounce_word, open_online_dictionary
+
+    print("utils 函数导入成功")
+except ImportError as e:
+    print(f"导入 utils 失败: {e}")
+
+
+    # 创建简化版工具函数
+    def resize_image(img, max_width, max_height):
+        return img
+
+
+    def pronounce_word(word):
+        return False, "发音功能不可用"
+
+
+    def open_online_dictionary(word):
+        return False, "在线词典功能不可用"
+
+try:
+    from word_details import WordDetailsManager
+
+    print("WordDetailsManager 导入成功")
+except ImportError as e:
+    print(f"导入 WordDetailsManager 失败: {e}")
+
+
+    class WordDetailsManager:
+        def __init__(self, db_path):
+            self.db_path = db_path
+
+        def get_wordbook_words(self, search_term="", sort_by="添加时间"):
+            return []
+
+        def get_word_details(self, word):
+            return None
+
+        def delete_word(self, word):
+            return False
+
+try:
+    from image_manager import ImageManager
+
+    print("ImageManager 导入成功")
+except ImportError as e:
+    print(f"导入 ImageManager 失败: {e}")
+
+
+    class ImageManager:
+        def __init__(self):
+            pass
+
+        def save_image(self, image, prefix="image"):
+            return None
 
 class WordLearnerApp:
     def __init__(self, root):
@@ -39,22 +201,24 @@ class WordLearnerApp:
         # 配置
         self.api_key = "sk-5ddc81d9a00048f898f0c80f405fdf24"  # 需要设置OpenAI API密钥
         # 确保数据库路径指向word_learner目录
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.db_path = os.path.join(script_dir, "words.db")
+
         self.current_image_path = None
         self.recognized_words = []
         self.current_word_index = 0
         self.current_page = "camera"  # 当前显示的页面
-        
+
+        # 初始化数据库（包含路径处理）
+        self.init_database_with_fallback()
+
         # 初始化服务和管理器
         self.init_services()
         
-        # 初始化数据库
-        self.init_database()
-        
         # 初始化主题系统
         self.init_themes()
-        
+
+        # 使用可写的数据库路径 (替换原来的数据库路径设置)
+        self.init_database_with_fallback()
+
         # 加载用户设置
         self.load_settings()
         
@@ -79,7 +243,86 @@ class WordLearnerApp:
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
-    
+
+    def get_writable_db_path(self):
+        """获取可写的数据库路径"""
+        app_name = "WordLearner"
+
+        try:
+            # macOS: ~/Documents/WordLearner/words.db
+            documents_dir = os.path.expanduser("~/Documents")
+            if os.path.exists(documents_dir):
+                app_dir = os.path.join(documents_dir, app_name)
+                if not os.path.exists(app_dir):
+                    os.makedirs(app_dir, exist_ok=True)
+                return os.path.join(app_dir, "words.db")
+        except:
+            pass
+
+        try:
+            # 备选: ~/WordLearner/words.db
+            home_dir = os.path.expanduser("~")
+            app_dir = os.path.join(home_dir, app_name)
+            if not os.path.exists(app_dir):
+                os.makedirs(app_dir, exist_ok=True)
+            return os.path.join(app_dir, "words.db")
+        except:
+            pass
+
+        # 最后备选: 系统临时目录
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), "words.db")
+
+    def init_database_with_fallback(self):
+        """初始化数据库，支持资源复制"""
+        # 获取可写的数据库路径
+        writable_db_path = self.get_writable_db_path()
+
+        # 如果数据库不存在，尝试从资源复制
+        if not os.path.exists(writable_db_path):
+            try:
+                # 尝试从打包的资源中复制数据库
+                resource_db_path = get_resource_path("words.db")
+                if os.path.exists(resource_db_path):
+                    import shutil
+                    shutil.copy2(resource_db_path, writable_db_path)
+                    print(f"数据库已复制到: {writable_db_path}")
+            except Exception as e:
+                print(f"复制数据库失败: {e}")
+
+        self.db_path = writable_db_path
+
+
+
+    def get_settings_path(self):
+        """获取可写的设置文件路径"""
+        app_name = "WordLearner"
+
+        try:
+            # macOS: ~/Documents/WordLearner/settings.json
+            documents_dir = os.path.expanduser("~/Documents")
+            if os.path.exists(documents_dir):
+                app_dir = os.path.join(documents_dir, app_name)
+                if not os.path.exists(app_dir):
+                    os.makedirs(app_dir, exist_ok=True)
+                return os.path.join(app_dir, "settings.json")
+        except:
+            pass
+
+        # 备选: ~/WordLearner/settings.json
+        try:
+            home_dir = os.path.expanduser("~")
+            app_dir = os.path.join(home_dir, app_name)
+            if not os.path.exists(app_dir):
+                os.makedirs(app_dir, exist_ok=True)
+            return os.path.join(app_dir, "settings.json")
+        except:
+            pass
+
+        # 最后备选: 系统临时目录
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), "settings.json")
+
     def init_services(self):
         """初始化各种服务和管理器"""
         self.api_service = APIService(self.api_key)
@@ -167,28 +410,45 @@ class WordLearnerApp:
                 "description": "自然绿色，清新护眼"
             }
         }
-    
+
     def load_settings(self):
         """加载用户设置"""
         try:
-            # 尝试从settings.json加载设置
-            with open("settings.json", "r", encoding="utf-8") as f:
-                settings = json.load(f)
-                
-            # 加载API密钥
-            if "api_key" in settings:
-                self.api_key = settings["api_key"]
-                
-            # 加载主题设置
-            if "theme" in settings and settings["theme"] in self.themes:
-                self.current_theme = settings["theme"]
-                
-            # 加载状态栏显示设置
-            self.show_statusbar = settings.get("show_statusbar", False)  # 默认不显示
-            
-        except (FileNotFoundError, json.JSONDecodeError, KeyError):
-            # 如果文件不存在或格式错误，使用默认值
-            self.show_statusbar = False  # 默认不显示
+            settings_path = self.get_settings_path()
+
+            # 如果设置文件不存在，尝试从资源复制
+            if not os.path.exists(settings_path):
+                try:
+                    resource_settings_path = get_resource_path("settings.json")
+                    if os.path.exists(resource_settings_path):
+                        import shutil
+                        shutil.copy2(resource_settings_path, settings_path)
+                except:
+                    pass
+
+            # 加载设置
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+
+                # 加载API密钥
+                if "api_key" in settings:
+                    self.api_key = settings["api_key"]
+
+                # 加载主题设置
+                if "theme" in settings and settings["theme"] in self.themes:
+                    self.current_theme = settings["theme"]
+
+                # 加载状态栏显示设置
+                self.show_statusbar = settings.get("show_statusbar", False)
+            else:
+                # 使用默认值
+                self.show_statusbar = False
+
+        except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+            print(f"加载设置失败: {e}")
+            # 使用默认值
+            self.show_statusbar = False
     
     def save_theme_setting(self, theme_name):
         """保存主题设置"""
@@ -662,21 +922,22 @@ class WordLearnerApp:
         # 更新单词管理器的API密钥（如果存在）
         if hasattr(self, 'words_manager'):
             self.words_manager.api_key = self.api_key
-        
-        # 保存到配置文件
+
+        # 保存到可写的配置文件
         settings = {
             "api_key": self.api_key,
             "theme": self.current_theme,
             "show_statusbar": self.show_statusbar
         }
-        
+
         try:
-            with open("settings.json", "w", encoding="utf-8") as f:
+            settings_path = self.get_settings_path()
+            with open(settings_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, ensure_ascii=False, indent=2)
+            messagebox.showinfo("成功", "设置已保存")
         except Exception as e:
             print(f"保存设置时出错: {e}")
-        
-        messagebox.showinfo("成功", "设置已保存")
+            messagebox.showerror("错误", f"保存设置失败: {e}")
     
     def load_wordbook_words(self, search_term=""):
         """加载生词本单词"""
@@ -2320,14 +2581,15 @@ class WordLearnerApp:
         
         self.sentence_text.tag_config("highlight", foreground="red", font=("Arial", 10, "bold"))
         self.sentence_text.config(state=tk.DISABLED)
+
     def draw_word_labels(self, words, positions, original_width, original_height):
         """在图片Canvas上根据大模型返回的坐标绘制单词标签，智能避让重叠。"""
         self.image_canvas.delete("word_label")
-        
+
         # 获取实际Canvas尺寸
         canvas_width = self.image_canvas.winfo_width()
         canvas_height = self.image_canvas.winfo_height()
-        
+
         if canvas_width <= 10 or canvas_height <= 10:
             canvas_width = 450
             canvas_height = 320
@@ -2336,11 +2598,11 @@ class WordLearnerApp:
             print("警告: 原始图片尺寸为0，无法进行坐标缩放。")
             self.status_bar.config(text="警告: 原始图片尺寸为0，无法缩放标签。")
             return
-        
+
         # 计算图片在Canvas中的实际显示区域
         canvas_ratio = canvas_width / canvas_height
         image_ratio = original_width / original_height
-        
+
         if image_ratio > canvas_ratio:
             display_width = canvas_width
             display_height = canvas_width / image_ratio
@@ -2367,54 +2629,54 @@ class WordLearnerApp:
         if positions:
             x_coords = [pos[0] for pos in positions if len(pos) >= 2]
             y_coords = [pos[1] for pos in positions if len(pos) >= 2]
-            
+
             if x_coords and y_coords:
                 x_min, x_max = min(x_coords), max(x_coords)
                 y_min, y_max = min(y_coords), max(y_coords)
-                
+
                 print(f"坐标范围: X({x_min}-{x_max}), Y({y_min}-{y_max})")
-                
+
                 coord_range_x = x_max - x_min
                 coord_range_y = y_max - y_min
-                
+
                 # 如果坐标范围相对图片尺寸很小，重新映射
                 if coord_range_x < original_width * 0.2 or coord_range_y < original_height * 0.2:
                     print("检测到坐标范围较小，尝试重新映射...")
-                    
+
                     # 将坐标重新映射到整个显示区域
                     for i, word in enumerate(words):
                         if i < len(positions) and positions[i] and len(positions[i]) >= 2:
                             x_orig, y_orig = positions[i][0], positions[i][1]
-                            
+
                             # 归一化到0-1范围
                             if coord_range_x > 0:
                                 x_norm = (x_orig - x_min) / coord_range_x
                             else:
                                 x_norm = 0.5
-                                
+
                             if coord_range_y > 0:
                                 y_norm = (y_orig - y_min) / coord_range_y
                             else:
                                 y_norm = 0.5
-                            
+
                             # 映射到显示区域，增加一些边距
                             margin_x = display_width * 0.1
                             margin_y = display_height * 0.1
-                            
+
                             x_canvas = offset_x + margin_x + x_norm * (display_width - 2 * margin_x)
                             y_canvas = offset_y + margin_y + y_norm * (display_height - 2 * margin_y)
-                            
+
                             print(f"单词'{word}': 重新映射坐标({x_canvas:.1f}, {y_canvas:.1f})")
-                            
+
                             # 直接在这里绘制标签
                             font_size = 10
                             padding = 4
                             text_width_estimate = len(word) * font_size * 0.7
                             text_height_estimate = font_size + 4
-                            
+
                             label_width = text_width_estimate + 2 * padding
                             label_height = text_height_estimate + 2 * padding
-                            
+
                             # 智能避让
                             candidate_positions = [
                                 (x_canvas, y_canvas),
@@ -2423,20 +2685,20 @@ class WordLearnerApp:
                                 (x_canvas - label_width - 5, y_canvas),
                                 (x_canvas + label_width + 5, y_canvas),
                             ]
-                            
+
                             best_position = None
                             min_overlap_area = float('inf')
-                            
+
                             for candidate_x, candidate_y in candidate_positions:
                                 # 确保标签在显示区域内
                                 rect_x1 = max(offset_x, candidate_x - label_width / 2)
                                 rect_y1 = max(offset_y, candidate_y - label_height / 2)
                                 rect_x2 = min(offset_x + display_width, candidate_x + label_width / 2)
                                 rect_y2 = min(offset_y + display_height, candidate_y + label_height / 2)
-                                
+
                                 if rect_x2 - rect_x1 < label_width * 0.5 or rect_y2 - rect_y1 < label_height * 0.5:
                                     continue
-                                
+
                                 # 计算重叠面积
                                 total_overlap_area = 0
                                 for dr_x1, dr_y1, dr_x2, dr_y2 in drawn_rects:
@@ -2444,18 +2706,18 @@ class WordLearnerApp:
                                     overlap_y1 = max(rect_y1, dr_y1)
                                     overlap_x2 = min(rect_x2, dr_x2)
                                     overlap_y2 = min(rect_y2, dr_y2)
-                                    
+
                                     if overlap_x1 < overlap_x2 and overlap_y1 < overlap_y2:
                                         overlap_area = (overlap_x2 - overlap_x1) * (overlap_y2 - overlap_y1)
                                         total_overlap_area += overlap_area
-                                
+
                                 if total_overlap_area < min_overlap_area:
                                     min_overlap_area = total_overlap_area
                                     best_position = (candidate_x, candidate_y, rect_x1, rect_y1, rect_x2, rect_y2)
-                                
+
                                 if total_overlap_area == 0:
                                     break
-                            
+
                             if best_position is None:
                                 current_x_center = x_canvas
                                 current_y_center = y_canvas
@@ -2465,63 +2727,64 @@ class WordLearnerApp:
                                 rect_y2 = min(offset_y + display_height, current_y_center + label_height / 2)
                             else:
                                 current_x_center, current_y_center, rect_x1, rect_y1, rect_x2, rect_y2 = best_position
-                            
+
                             rect_tag = f"rect_{i}"
                             text_tag = f"text_{i}"
                             group_tag = f"word_group_{i}"
-                            
+
                             # 绘制标签
                             self.image_canvas.create_rectangle(rect_x1, rect_y1, rect_x2, rect_y2,
-                                                            fill="#FFFFE0",
-                                                            outline="#FFA500",
-                                                            width=2,
-                                                            tags=("word_label", rect_tag, group_tag))
-                            
+                                                               fill="#FFFFE0",
+                                                               outline="#FFA500",
+                                                               width=2,
+                                                               tags=("word_label", rect_tag, group_tag))
+
                             self.image_canvas.create_text(current_x_center, current_y_center,
-                                                        text=word,
-                                                        fill="#FF4500",
-                                                        font=("Arial", font_size, "bold"),
-                                                        anchor=tk.CENTER,
-                                                        tags=("word_label", text_tag, group_tag))
-                            
+                                                          text=word,
+                                                          fill="#FF4500",
+                                                          font=("Arial", font_size, "bold"),
+                                                          anchor=tk.CENTER,
+                                                          tags=("word_label", text_tag, group_tag))
+
                             drawn_rects.append((rect_x1, rect_y1, rect_x2, rect_y2))
-                            
+
                             # 事件绑定
-                            self.image_canvas.tag_bind(group_tag, "<Button-1>", lambda e, idx=i: self.on_word_label_click(idx))
-                            
+                            self.image_canvas.tag_bind(group_tag, "<Button-1>",
+                                                       lambda e, idx=i: self.on_word_label_click(idx))
+
                             # 悬停效果
                             def make_hover_handlers(tag, rect):
                                 def on_enter(event):
                                     for item in self.image_canvas.find_withtag(tag):
                                         if rect in self.image_canvas.gettags(item):
                                             self.image_canvas.itemconfig(item, fill="#FFFACD", outline="#FF8C00")
-                                
+
                                 def on_leave(event):
                                     for item in self.image_canvas.find_withtag(tag):
                                         if rect in self.image_canvas.gettags(item):
                                             self.image_canvas.itemconfig(item, fill="#FFFFE0", outline="#FFA500")
-                                
+
                                 return on_enter, on_leave
-                            
+
                             on_enter, on_leave = make_hover_handlers(group_tag, rect_tag)
                             self.image_canvas.tag_bind(group_tag, "<Enter>", on_enter)
                             self.image_canvas.tag_bind(group_tag, "<Leave>", on_leave)
                 else:
                     # 使用原始的坐标转换方法
                     scale_factor = min(display_width / original_width, display_height / original_height)
-                    
+
                     for i, word in enumerate(words):
                         if i < len(positions) and positions[i] and len(positions[i]) >= 2:
                             x_orig, y_orig = positions[i][0], positions[i][1]
-                            
+
                             x_canvas = x_orig * scale_factor + offset_x
                             y_canvas = y_orig * scale_factor + offset_y
-                            
+
                             print(f"单词'{word}': 标准映射坐标({x_canvas:.1f}, {y_canvas:.1f})")
-                            
+
                             # 这里也需要类似的绘制逻辑...
                             # 为了简化，可以复制上面的绘制代码
-        
+
         print(f"成功绘制 {len(drawn_rects)} 个标签")
 
     def hide_word_labels(self):
